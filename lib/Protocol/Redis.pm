@@ -16,6 +16,7 @@ sub new {
     bless $self, $class;
 
     $self->newline($self->{newline});
+    $self->on_command($self->{on_command});
     $self->{_commands} = [];
     $self->_change_state(\&_state_new_command);
 
@@ -131,9 +132,14 @@ sub _state_bulk_command {
         # Delete starting '$'
         substr $self->{_bulk_size}, 0, 1, "";
 
-        $self->{_state_cb} = $bulk_state_cb;
-        $self->_change_state(\&_state_bulk_command_data, $chunk);
-
+        if ($self->{_bulk_size} == -1) {
+            # Nil
+            $self->{_cmd}{data} = undef;
+            $bulk_state_cb->($self, $chunk);
+        } else {
+            $self->{_state_cb} = $bulk_state_cb;
+            $self->_change_state(\&_state_bulk_command_data, $chunk);
+        }
     };
     $self->_change_state(\&_state_string_command, $chunk);
 }

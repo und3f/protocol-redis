@@ -2,8 +2,9 @@
 
 use strict;
 use warnings;
+use utf8;
 
-use Test::More tests => 14;
+use Test::More tests => 16;
 
 use_ok 'Protocol::Redis';
 
@@ -20,11 +21,18 @@ is_deeply $redis->get_command,
   undef,
   'queue is empty';
 
-$redis->parse(":test2\r\n");
+$redis->parse(":1\r\n");
 
 is_deeply $redis->get_command,
-  {type => ':', data => 'test2'},
+  {type => ':', data => '1'},
   'simple number';
+
+# Unicode test
+$redis->parse("+привет\r\n");
+
+is_deeply $redis->get_command,
+  {type => '+', data => 'привет'},
+  'unicode string';
 
 # Chunked command
 $redis->parse('-tes');
@@ -53,6 +61,13 @@ $redis->parse("t2\r\n");
 is_deeply $redis->get_command,
   {type => '$', data => 'test2'},
   'splitted bulk command';
+
+# Nil bulk command
+$redis->parse("\$-1\r\n");
+
+is_deeply $redis->get_command,
+  {type => '$', data => undef},
+  'nil bulk command';
 
 # Multi bulk command!
 $redis->parse("*1\r\n\$4\r\ntest\r\n");
