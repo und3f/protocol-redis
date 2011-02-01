@@ -3,9 +3,8 @@ package Protocol::Redis;
 use strict;
 use warnings;
 
-use List::Util;
-
-use Carp;
+use List::Util ();
+require Carp;
 
 our $VERSION = 0.1;
 
@@ -93,7 +92,7 @@ sub _state_new_command {
 
     }
     else {
-        Carp::croak qq/Unexcpected input "$cmd"/;
+        Carp::croak(qq/Unexpected input "$cmd"/);
     }
 }
 
@@ -103,17 +102,19 @@ sub _state_string_command {
     my $str = $self->{_state_string} .= $chunk;
     my $i = index $str, $self->newline;
 
-    if ($i >= 0) {
-        my $result = substr $str, 0, $i, '';
+    # string isn't full
+    return if $i < 0;
 
-        # Delete newline
-        substr $str, 0, length($self->newline), '';
+    # We got full string
+    my $result = substr $str, 0, $i, '';
 
-        delete $self->{_state_string};
+    # Delete newline
+    substr $str, 0, length($self->newline), '';
 
-        $self->{_cmd}{data} = $result;
-        $self->{_state_cb}->($self, $str);
-    }
+    delete $self->{_state_string};
+
+    $self->{_cmd}{data} = $result;
+    $self->{_state_cb}->($self, $str);
 }
 
 sub _state_bulk_command {
@@ -172,9 +173,10 @@ sub _state_multibulk_command {
             # Cleanup
             $mbulk_process = undef;
             delete $self->{_mbulk_arg_num};
-            $self->{_cmd}{data} = $data;
             delete $self->{_state_cb};
 
+            # Return command
+            $self->{_cmd}{data} = $data;
             $mbulk_state_cb->($self, $chunk);
         }
         else {
