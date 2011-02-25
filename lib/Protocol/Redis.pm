@@ -6,7 +6,7 @@ use warnings;
 use List::Util ();
 require Carp;
 
-our $VERSION = 0.1;
+our $VERSION = 0.9;
 
 sub new {
     my $class = shift;
@@ -16,9 +16,9 @@ sub new {
     bless $self, $class;
 
     $self->newline($self->{newline});
-    $self->on_command($self->{on_command});
-    $self->{_commands} = [];
-    $self->_change_state(\&_state_new_command);
+    $self->on_message($self->{on_message});
+    $self->{_messages} = [];
+    $self->_change_state(\&_state_new_message);
 
     $self;
 }
@@ -29,14 +29,30 @@ sub newline {
     $self->{_newline} = $newline or "\r\n";
 }
 
-sub get_command {
+sub get_message {
     my ($self) = @_;
-    shift @{$self->{_commands}};
+    shift @{$self->{_messages}};
+}
+
+sub on_message {
+    my ($self, $cb) = @_;
+    $self->{_on_message_cb} = $cb;
+}
+
+sub get_command {
+    my $self = shift;
+    warn <<EOF;
+Protocol::Redis->get_command renamed to Protocol::Redis->get_message
+EOF
+    $self->get_message(@_);
 }
 
 sub on_command {
-    my ($self, $cb) = @_;
-    $self->{_on_command_cb} = $cb;
+    my $self = shift;
+    warn <<EOF;
+Protocol::Redis->on_command renamed to Protocol::Redis->on_message
+EOF
+    $self->on_message(@_);
 }
 
 sub parse {
@@ -55,21 +71,21 @@ sub _change_state {
     $new_state->($self, $chunk) if $chunk;
 }
 
-sub _command_parsed {
+sub _message_parsed {
     my ($self, $chunk) = @_;
 
-    my $command = delete $self->{_cmd};
+    my $message = delete $self->{_cmd};
 
-    if (my $cb = $self->{_on_command_cb}) {
-        $cb->($self, $command);
+    if (my $cb = $self->{_on_message_cb}) {
+        $cb->($self, $message);
     }
     else {
-        push @{$self->{_commands}}, $command;
+        push @{$self->{_messages}}, $message;
     }
-    $self->_change_state(\&_state_new_command, $chunk);
+    $self->_change_state(\&_state_new_message, $chunk);
 }
 
-sub _state_new_command {
+sub _state_new_message {
     my ($self, $chunk) = @_;
 
     $self->{_cmd} = {type => undef, data => undef};
@@ -78,18 +94,18 @@ sub _state_new_command {
 
     if (List::Util::first { $cmd eq $_ } (qw/+ - :/)) {
         $self->{_cmd}{type} = $cmd;
-        $self->{_state_cb} = \&_command_parsed;
-        $self->_change_state(\&_state_string_command, $chunk);
+        $self->{_state_cb} = \&_message_parsed;
+        $self->_change_state(\&_state_string_message, $chunk);
     }
     elsif ($cmd eq '$') {
         $self->{_cmd}{type} = $cmd;
-        $self->{_state_cb} = \&_command_parsed;
-        $self->_change_state(\&_state_bulk_command, $cmd . $chunk);
+        $self->{_state_cb} = \&_message_parsed;
+        $self->_change_state(\&_state_bulk_message, $cmd . $chunk);
     }
     elsif ($cmd eq '*') {
         $self->{_cmd}{type} = $cmd;
-        $self->{_state_cb} = \&_command_parsed;
-        $self->_change_state(\&_state_multibulk_command, $chunk);
+        $self->{_state_cb} = \&_message_parsed;
+        $self->_change_state(\&_state_multibulk_message, $chunk);
 
     }
     else {
@@ -97,7 +113,7 @@ sub _state_new_command {
     }
 }
 
-sub _state_string_command {
+sub _state_string_message {
     my ($self, $chunk) = @_;
 
     my $str = $self->{_state_string} .= $chunk;
@@ -118,12 +134,12 @@ sub _state_string_command {
     $self->{_state_cb}->($self, $str);
 }
 
-sub _state_bulk_command {
+sub _state_bulk_message {
     my ($self, $chunk) = @_;
 
     my $bulk_state_cb = $self->{_state_cb};
 
-    # Read bulk command size
+    # Read bulk message size
     $self->{_state_cb} = sub {
         my ($self, $chunk) = @_;
 
@@ -133,18 +149,20 @@ sub _state_bulk_command {
         substr $self->{_bulk_size}, 0, 1, "";
 
         if ($self->{_bulk_size} == -1) {
+
             # Nil
             $self->{_cmd}{data} = undef;
             $bulk_state_cb->($self, $chunk);
-        } else {
+        }
+        else {
             $self->{_state_cb} = $bulk_state_cb;
-            $self->_change_state(\&_state_bulk_command_data, $chunk);
+            $self->_change_state(\&_state_bulk_message_data, $chunk);
         }
     };
-    $self->_change_state(\&_state_string_command, $chunk);
+    $self->_change_state(\&_state_string_message, $chunk);
 }
 
-sub _state_bulk_command_data {
+sub _state_bulk_message_data {
     my ($self, $chunk) = @_;
 
     my $str = $self->{_state_string} .= $chunk;
@@ -162,7 +180,7 @@ sub _state_bulk_command_data {
     }
 }
 
-sub _state_multibulk_command {
+sub _state_multibulk_message {
     my ($self, $chunk) = @_;
 
     my $mbulk_state_cb = delete $self->{_state_cb};
@@ -181,7 +199,7 @@ sub _state_multibulk_command {
             delete $self->{_mbulk_arg_num};
             delete $self->{_state_cb};
 
-            # Return command
+            # Return message
             $self->{_cmd}{data} = $data;
             $mbulk_state_cb->($self, $chunk);
         }
@@ -189,14 +207,14 @@ sub _state_multibulk_command {
 
             # read next string
             $self->{_state_cb} = $mbulk_process;
-            $self->_change_state(\&_state_bulk_command, $chunk);
+            $self->_change_state(\&_state_bulk_message, $chunk);
         }
     };
 
     $self->{_state_cb} = sub {
         my ($self, $chunk) = @_;
 
-        # Number of Multi-Bulk command
+        # Number of Multi-Bulk message
         my $num = $self->{_mbulk_arg_num} = delete $self->{_cmd}{data};
         if ($num < 1) {
             $mbulk_process = undef;
@@ -205,14 +223,14 @@ sub _state_multibulk_command {
         }
         else {
 
-            # We got commands
+            # We got messages
             $self->{_state_cb} = $mbulk_process;
-            $self->_change_state(\&_state_bulk_command, $chunk);
+            $self->_change_state(\&_state_bulk_message, $chunk);
         }
     };
 
-    # Get number of commands
-    $self->_change_state(\&_state_string_command, $chunk);
+    # Get number of messages
+    $self->_change_state(\&_state_string_message, $chunk);
 }
 
 1;
@@ -234,22 +252,34 @@ Redis protocol parser.
 
 Parse Redis protocol chunk.
 
-=head2 C<get_command>
+=head2 C<get_message>
 
-    while (my $command = $redis->get_command) {
+    while (my $message = $redis->get_message) {
         ...
     }
 
-Get parsed command or undef.
+Get parsed message or undef.
 
-=head2 C<on_command>
+=head2 C<on_message>
 
-    $redis->on_command(sub {
-        my ($redis, $command) = @_;
+    $redis->on_message(sub {
+        my ($redis, $message) = @_;
 
     }
 
-Calls callback on each parsed command.
+Calls callback on each parsed message.
+
+=head1 SUPPORT
+
+=head2 IRC
+
+    #ru.pm on irc.perl.org
+    
+=head1 DEVELOPMENT
+
+=head2 Repository
+
+    http://github.com/und3f/protocol-redis
 
 =head1 AUTHOR
 

@@ -1,0 +1,8 @@
+This file documents the revision history for Perl extension Protocol::Redis
+
+0.9    26.02.2011 00:00:00
+        - on_command renamed to on_message
+        - get_command renamed to get_message
+
+0.1    01.02.2011 00:00:00
+        - first release
