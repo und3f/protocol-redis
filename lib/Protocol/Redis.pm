@@ -285,7 +285,9 @@ Calls callback on each parsed message.
 
 Sergey Zasenko, C<undef@cpan.org>.
 
-=head1 COPYRIGHT (C) 2011, Sergey Zasenko.
+=head1 COPYRIGHT AND LICENSE
+
+Copyright (C) 2011, Sergey Zasenko.
 
 This program is free software, you can redistribute it and/or modify it under
 the same terms as Perl 5.10.
