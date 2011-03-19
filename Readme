@@ -1,4 +1,4 @@
-Protocol::Redis - Redis protocol parser with asynchronous capabilities.
+Protocol::Redis - Redis protocol parser/encoder with asynchronous capabilities.
 
 use Protocol::Redis;
 my $redis = Protocol::Redis->new;
@@ -17,3 +17,6 @@ $redis->on_message(sub {
 # parse some malformed message
 $redis->parse("+bar");
 $redis->parse("\r\n-error\r\n");
+
+# create message
+print "Get key message:\n", $redis->encode('*', ['get', 'foo']);

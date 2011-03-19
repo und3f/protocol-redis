@@ -290,11 +290,11 @@ __END__
 
 =head1 NAME
 
-Protocol::Redis - Redis protocol parser
+Protocol::Redis - Redis protocol parser/encoder
 
 =head1 DESCRIPTION
 
-Redis protocol parser.
+Redis protocol parser/encoder.
 
 =head1 METHODS
 
