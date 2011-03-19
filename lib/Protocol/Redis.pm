@@ -6,7 +6,7 @@ use warnings;
 use List::Util ();
 require Carp;
 
-our $VERSION = 0.9;
+our $VERSION = 0.9001;
 
 sub new {
     my $class = shift;
@@ -28,6 +28,58 @@ sub newline {
 
     $self->{_newline} = $newline or "\r\n";
 }
+
+sub encode {
+    my ($self, $type, $data) = @_;
+
+    if (ref $type eq 'HASH') {
+        $data = $type->{data};
+        $type = $type->{type};
+    };
+
+    if (List::Util::first {$type eq $_} qw/+ - :/) {
+        $self->_encode_string($type, $data);
+    } elsif ($type eq '$') {
+        $self->_encode_bulk($type, $data);
+    } elsif ($type eq '*') {
+        $self->_encode_multi_bulk($type, $data);
+    } else {
+        Carp::croak(qq/Unknown message type $type/);
+    }
+}
+
+sub _encode_string {
+    my ($self, $type, $data) = @_;
+
+    $type . $data . $self->newline;
+}
+
+sub _encode_bulk {
+    my ($self, $type, $data) = @_;
+
+    return '$-1' . $self->newline
+      unless defined $data;
+
+    '$'
+      . length($data)
+      . $self->newline
+      . $data
+      . $self->newline;
+}
+
+sub _encode_multi_bulk {
+    my ($self, $type, $data) = @_;
+
+    return '*-1' . $self->newline
+        unless defined $data;
+
+    my $message = '*' . scalar(@$data) . $self->newline;
+    foreach my $element (@$data) {
+        $message .= $self->_encode_bulk('$', $element);
+    }
+    $message;
+}
+
 
 sub get_message {
     my ($self) = @_;
@@ -268,6 +320,15 @@ Get parsed message or undef.
     }
 
 Calls callback on each parsed message.
+
+=head2 C<encode>
+    
+    my $string = $redis->encode('+', 'OK');
+    $string = $redis->encode('$', 'result');
+    $string = $redis->encode('*', ['foo', 'bar']);
+    $string = $redis->encode({type => '+', data => 'test'});
+
+Encode data into redis message
 
 =head1 SUPPORT
 

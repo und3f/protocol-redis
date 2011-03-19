@@ -4,7 +4,7 @@ use strict;
 use warnings;
 use utf8;
 
-use Test::More tests => 18;
+use Test::More tests => 29;
 
 use_ok 'Protocol::Redis';
 
@@ -125,3 +125,31 @@ $redis->on_command(
 );
 $redis->parse("+foo\r\n");
 is_deeply $r, [{type => '+', data => 'foo'}], 'on_command works';
+
+# Encode message
+is $redis->encode('+', 'OK'),    "+OK\r\n",    'encode status';
+is $redis->encode('-', 'ERROR'), "-ERROR\r\n", 'encode error';
+is $redis->encode(':', '5'),     ":5\r\n",     'encode integer';
+
+# Encode bulk message
+is $redis->encode('$', 'test'), "\$4\r\ntest\r\n", 'encode bulk';
+is $redis->encode('$', undef),  "\$-1\r\n",        'encode nil bulk';
+
+# Encode multi-bulk
+is $redis->encode('*', ['test']), "\*1\r\n\$4\r\ntest\r\n",
+  'encode multi-bulk';
+is $redis->encode('*', [qw/test1 test2/]),
+  "\*2\r\n\$5\r\ntest1\r\n\$5\r\ntest2\r\n",
+  'encode multi-bulk';
+
+is $redis->encode('*', []), "\*0\r\n", 'encode empty multi-bulk';
+
+is $redis->encode('*', undef), "\*-1\r\n", 'encode nil multi-bulk';
+
+is $redis->encode('*', ['foo', undef, 'bar']),
+  "\*3\r\n\$3\r\nfoo\r\n\$-1\r\n\$3\r\nbar\r\n",
+  'encode multi-bulk with nil element';
+
+# Encode data from hash
+is $redis->encode({type => '+', data => 'OK'}), "+OK\r\n",
+  'encode status from hash';
