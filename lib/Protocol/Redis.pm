@@ -111,7 +111,7 @@ sub parse {
     my ($self, $chunk) = @_;
 
     # Just pass chunk to current vertex
-    $self->{_state}->($self, $chunk);
+    while ($chunk = $self->{_state}->($self, $chunk)) {};
 }
 
 sub _change_state {
@@ -120,7 +120,8 @@ sub _change_state {
     $self->{_state} = $new_state;
 
     # Pass rest of chunk to new vertex
-    $new_state->($self, $chunk) if $chunk;
+    return $new_state->($self, $chunk) if $chunk;
+    undef;
 }
 
 sub _message_parsed {
@@ -134,7 +135,11 @@ sub _message_parsed {
     else {
         push @{$self->{_messages}}, $message;
     }
-    $self->_change_state(\&_state_new_message, $chunk);
+
+    #$self->_change_state(\&_state_new_message, $chunk);
+    $self->{_state} = \&_state_new_message;
+
+    $chunk;
 }
 
 sub _state_parse_message_type {
@@ -143,22 +148,23 @@ sub _state_parse_message_type {
     my $cmd = substr $chunk, 0, 1, '';
     if (List::Util::first { $cmd eq $_ } (qw/+ - :/)) {
         $self->{_cmd}{type} = $cmd;
-        $self->_change_state(\&_state_string_message, $chunk);
+        return $self->_change_state(\&_state_string_message, $chunk);
     }
     elsif ($cmd eq '$') {
         $self->{_cmd}{type} = $cmd;
-        $self->_change_state(\&_state_bulk_message, $cmd . $chunk);
+        return $self->_change_state(\&_state_bulk_message, $cmd . $chunk);
     }
     elsif ($cmd eq '*') {
         $self->{_cmd}{type} = $cmd;
-        # multi bulk message can't be recursed - just ignore it 
-        $self->{_state_cb} = \&_message_parsed;
-        $self->_change_state(\&_state_multibulk_message, $chunk);
+        # it can
+        return $self->_change_state(\&_state_multibulk_message, $chunk);
 
     }
     else {
         Carp::croak(qq/Unexpected input "$cmd"/);
     }
+
+    undef;
 }
 
 sub _state_new_message {
@@ -178,7 +184,7 @@ sub _state_string_message {
     my $i = index $str, $self->newline;
 
     # string isn't full
-    return if $i < 0;
+    return undef if $i < 0;
 
     # We got full string
     my $result = substr $str, 0, $i, '';
@@ -247,6 +253,8 @@ sub _state_multibulk_message {
     my $data           = [];
     my $mbulk_process;
 
+    my $arguments_num;
+
     $mbulk_process = sub {
         my ($self, $chunk) = @_;
 
@@ -255,11 +263,10 @@ sub _state_multibulk_message {
             data => delete $self->{_cmd}{data}
         };
 
-        if (scalar @$data == $self->{_mbulk_arg_num}) {
+        if (scalar @$data == $arguments_num) {
 
             # Cleanup
             $mbulk_process = undef;
-            delete $self->{_mbulk_arg_num};
             delete $self->{_state_cb};
 
             # Return message
@@ -279,8 +286,8 @@ sub _state_multibulk_message {
         my ($self, $chunk) = @_;
 
         # Number of Multi-Bulk message
-        my $num = $self->{_mbulk_arg_num} = delete $self->{_cmd}{data};
-        if ($num < 1) {
+        $arguments_num = delete $self->{_cmd}{data};
+        if ($arguments_num < 1) {
             $mbulk_process = undef;
             $self->{_cmd}{data} = [];
             $mbulk_state_cb->($self, $chunk);

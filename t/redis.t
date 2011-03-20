@@ -4,7 +4,7 @@ use strict;
 use warnings;
 use utf8;
 
-use Test::More tests => 30;
+use Test::More tests => 34;
 
 use_ok 'Protocol::Redis';
 
@@ -65,6 +65,14 @@ is_deeply $redis->get_message,
   {type => '$', data => undef},
   'nil bulk message';
 
+# splitted bulk message
+$redis->parse(join("\r\n", '$4', 'test', '+OK'));
+$redis->parse("\r\n");
+is_deeply $redis->get_message,
+    { type => '$', data => 'test' }, 'splitted message';
+is_deeply $redis->get_message,
+    { type => '+', data => 'OK' };
+
 # Multi bulk message!
 $redis->parse("*1\r\n\$4\r\ntest\r\n");
 
@@ -101,6 +109,14 @@ is_deeply $redis->get_message,
 # Multi bulk message with status items
 $redis->parse(join("\r\n", '*2', '+OK', '$4', 'test', ''));
 is_deeply $redis->get_message, {type => '*', data => [{type => '+', data => 'OK'}, {type => '$', data => 'test'}]};
+
+# splitted multi-bulk
+$redis->parse(join("\r\n", '*1', '$4', 'test', '+OK'));
+$redis->parse("\r\n");
+
+is_deeply $redis->get_message, {type => '*', data => [{type => '$', data => 'test'}]};
+is_deeply $redis->get_message, {type => '+', data => 'OK'};
+
 
 # Parsing with cb
 my $r = [];
