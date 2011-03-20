@@ -337,7 +337,8 @@ Calls callback on each parsed message.
     $string = $redis->encode('*', ['foo', 'bar']);
     $string = $redis->encode({type => '+', data => 'test'});
 
-Encode data into redis message
+Encode data into redis message. Note that this method is EXPERIMENTAL and
+might change without warning!
 
 =head1 SUPPORT
 
