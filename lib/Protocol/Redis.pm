@@ -198,7 +198,9 @@ sub _state_bulk_message {
         $self->{_bulk_size} = delete $self->{_cmd}{data};
 
         # Delete starting '$'
-        substr $self->{_bulk_size}, 0, 1, "";
+        unless (my $s = substr($self->{_bulk_size}, 0, 1, "") eq '$') {
+            Carp::croak(qq/Unexpected bulk message start symbol "$s"/);
+        }
 
         if ($self->{_bulk_size} == -1) {
 
