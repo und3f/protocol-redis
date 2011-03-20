@@ -112,7 +112,7 @@ sub parse {
     my ($self, $chunk) = @_;
 
     # Just pass chunk to current vertex
-    while ($chunk = $self->{_state}->($self, $chunk)) { }
+    1 while $chunk = $self->{_state}->($self, $chunk);
 }
 
 sub _message_parsed {
@@ -177,14 +177,13 @@ sub _state_string_message {
     return undef if $i < 0;
 
     # We got full string
-    my $result = substr $str, 0, $i, '';
+    $self->{_cmd}{data} = substr $str, 0, $i, '';
 
     # Delete newline
     substr $str, 0, 2, '';
 
     delete $self->{_state_string};
 
-    $self->{_cmd}{data} = $result;
     $self->{_state_cb}->($self, $str);
 }
 
@@ -223,7 +222,7 @@ sub _state_bulk_message_data {
     # String + newline parsed
     return unless length $str >= $self->{_bulk_size} + 2;
 
-    my $result = substr $str, 0, $self->{_bulk_size}, '';
+    $self->{_cmd}{data} = substr $str, 0, $self->{_bulk_size}, '';
 
     # Delete ending newline
     substr $str, 0, 2, '';
@@ -231,7 +230,6 @@ sub _state_bulk_message_data {
     delete $self->{_state_string};
     delete $self->{_bulk_size};
 
-    $self->{_cmd}{data} = $result;
     $self->{_state_cb}->($self, $str);
 }
 
