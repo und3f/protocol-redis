@@ -112,8 +112,11 @@ sub _change_state {
     $self->{_state} = $new_state;
 
     # Pass rest of chunk to new vertex
-    return $new_state->($self, $chunk) if $chunk;
-    undef;
+    if ($chunk) {
+        $new_state->($self, $chunk);
+    } else {
+        undef;
+    }
 }
 
 sub _message_parsed {
@@ -134,30 +137,27 @@ sub _message_parsed {
     $chunk;
 }
 
+my %message_type_parsers = (
+    '+' => \&_state_string_message,
+    '-' => \&_state_string_message,
+    ':' => \&_state_string_message,
+    '$' => \&_state_bulk_message,
+    '*' => \&_state_multibulk_message,
+);
+
 sub _state_parse_message_type {
     my ($self, $chunk) = @_;
 
     my $cmd = substr $chunk, 0, 1, '';
-    if (List::Util::first { $cmd eq $_ } (qw/+ - :/)) {
-        $self->{_cmd}{type} = $cmd;
-        return $self->_change_state(\&_state_string_message, $chunk);
-    }
-    elsif ($cmd eq '$') {
-        $self->{_cmd}{type} = $cmd;
-        return $self->_change_state(\&_state_bulk_message, $cmd . $chunk);
-    }
-    elsif ($cmd eq '*') {
-        $self->{_cmd}{type} = $cmd;
 
-        # it can
-        return $self->_change_state(\&_state_multibulk_message, $chunk);
-
+    if ($cmd) {
+        if (my $parser = $message_type_parsers{$cmd}) {
+            $self->{_cmd}{type} = $cmd;
+            $self->_change_state($parser, $chunk);
+        } else {
+            Carp::croak(qq/Unexpected input "$cmd"/);
+        }
     }
-    else {
-        Carp::croak(qq/Unexpected input "$cmd"/);
-    }
-
-    undef;
 }
 
 sub _state_new_message {
@@ -201,11 +201,6 @@ sub _state_bulk_message {
         my ($self, $chunk) = @_;
 
         $self->{_bulk_size} = delete $self->{_cmd}{data};
-
-        # Delete starting '$'
-        unless (my $s = substr($self->{_bulk_size}, 0, 1, "") eq '$') {
-            Carp::croak(qq/Unexpected bulk message start symbol "$s"/);
-        }
 
         if ($self->{_bulk_size} == -1) {
 
