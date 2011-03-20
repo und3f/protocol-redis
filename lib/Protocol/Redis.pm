@@ -213,18 +213,18 @@ sub _state_bulk_message_data {
     my $str = $self->{_state_string} .= $chunk;
 
     # String + newline parsed
-    if (length $str >= $self->{_bulk_size} + 2) {
-        my $result = substr $str, 0, $self->{_bulk_size}, '';
+    return unless length $str >= $self->{_bulk_size} + 2;
 
-        # Delete ending newline
-        substr $str, 0, 2, '';
+    my $result = substr $str, 0, $self->{_bulk_size}, '';
 
-        delete $self->{_state_string};
-        delete $self->{_bulk_size};
+    # Delete ending newline
+    substr $str, 0, 2, '';
 
-        $self->{_cmd}{data} = $result;
-        $self->{_state_cb}->($self, $str);
-    }
+    delete $self->{_state_string};
+    delete $self->{_bulk_size};
+
+    $self->{_cmd}{data} = $result;
+    $self->{_state_cb}->($self, $str);
 }
 
 sub _state_multibulk_message {
