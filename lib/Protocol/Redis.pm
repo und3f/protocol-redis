@@ -23,36 +23,35 @@ sub new {
     $self;
 }
 
+my %message_type_encoders = (
+    '+' => \&_encode_string,
+    '-' => \&_encode_string,
+    ':' => \&_encode_string,
+    '$' => \&_encode_bulk,
+    '*' => \&_encode_multi_bulk,
+);
+
 sub encode {
-    my ($self, $type, $data) = @_;
+    my ($self, $message) = @_;
 
-    if (ref $type eq 'HASH') {
-        $data = $type->{data};
-        $type = $type->{type};
-    }
-
-    if (List::Util::first { $type eq $_ } qw/+ - :/) {
-        $self->_encode_string($type, $data);
-    }
-    elsif ($type eq '$') {
-        $self->_encode_bulk($type, $data);
-    }
-    elsif ($type eq '*') {
-        $self->_encode_multi_bulk($type, $data);
+    if (my $encoder = $message_type_encoders{$message->{type}}) {
+        $encoder->($self, $message);
     }
     else {
-        Carp::croak(qq/Unknown message type $type/);
+        Carp::croak(qq/Unknown message type $message->{type}/);
     }
 }
 
 sub _encode_string {
-    my ($self, $type, $data) = @_;
+    my ($self, $message) = @_;
 
-    $type . $data . "\r\n";
+    $message->{type} . $message->{data} . "\r\n";
 }
 
 sub _encode_bulk {
-    my ($self, $type, $data) = @_;
+    my ($self, $message) = @_;
+
+    my $data = $message->{data};
 
     return '$-1' . "\r\n"
       unless defined $data;
@@ -61,16 +60,19 @@ sub _encode_bulk {
 }
 
 sub _encode_multi_bulk {
-    my ($self, $type, $data) = @_;
+    my ($self, $message) = @_;
+
+    my $data = $message->{data};
 
     return '*-1' . "\r\n"
       unless defined $data;
 
-    my $message = '*' . scalar(@$data) . "\r\n";
+    my $e_message = '*' . scalar(@$data) . "\r\n";
     foreach my $element (@$data) {
-        $message .= $self->_encode_bulk('$', $element);
+        $e_message .= $self->encode($element);
     }
-    $message;
+
+    $e_message;
 }
 
 
@@ -326,10 +328,10 @@ Calls callback on each parsed message.
 
 =head2 C<encode>
     
-    my $string = $redis->encode('+', 'OK');
-    $string = $redis->encode('$', 'result');
-    $string = $redis->encode('*', ['foo', 'bar']);
-    $string = $redis->encode({type => '+', data => 'test'});
+    my $string = $redis->encode({type => '+', data => 'test'});
+    $string = $redis->encode(
+        {type => '*', data => [
+            {type => '$', data => 'test'}]});
 
 Encode data into redis message. Note that this method is EXPERIMENTAL and
 might change without warning!
