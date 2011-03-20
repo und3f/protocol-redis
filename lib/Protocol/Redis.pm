@@ -28,15 +28,18 @@ sub encode {
     if (ref $type eq 'HASH') {
         $data = $type->{data};
         $type = $type->{type};
-    };
+    }
 
-    if (List::Util::first {$type eq $_} qw/+ - :/) {
+    if (List::Util::first { $type eq $_ } qw/+ - :/) {
         $self->_encode_string($type, $data);
-    } elsif ($type eq '$') {
+    }
+    elsif ($type eq '$') {
         $self->_encode_bulk($type, $data);
-    } elsif ($type eq '*') {
+    }
+    elsif ($type eq '*') {
         $self->_encode_multi_bulk($type, $data);
-    } else {
+    }
+    else {
         Carp::croak(qq/Unknown message type $type/);
     }
 }
@@ -53,18 +56,14 @@ sub _encode_bulk {
     return '$-1' . "\r\n"
       unless defined $data;
 
-    '$'
-      . length($data)
-      . "\r\n"
-      . $data
-      . "\r\n";
+    '$' . length($data) . "\r\n" . $data . "\r\n";
 }
 
 sub _encode_multi_bulk {
     my ($self, $type, $data) = @_;
 
     return '*-1' . "\r\n"
-        unless defined $data;
+      unless defined $data;
 
     my $message = '*' . scalar(@$data) . "\r\n";
     foreach my $element (@$data) {
@@ -104,7 +103,7 @@ sub parse {
     my ($self, $chunk) = @_;
 
     # Just pass chunk to current vertex
-    while ($chunk = $self->{_state}->($self, $chunk)) {};
+    while ($chunk = $self->{_state}->($self, $chunk)) { }
 }
 
 sub _change_state {
@@ -149,6 +148,7 @@ sub _state_parse_message_type {
     }
     elsif ($cmd eq '*') {
         $self->{_cmd}{type} = $cmd;
+
         # it can
         return $self->_change_state(\&_state_multibulk_message, $chunk);
 
@@ -166,7 +166,7 @@ sub _state_new_message {
     $self->{_cmd} = {type => undef, data => undef};
 
     $self->{_state_cb} = \&_message_parsed;
-    
+
     $self->_change_state(\&_state_parse_message_type, $chunk);
 }
 
@@ -253,10 +253,10 @@ sub _state_multibulk_message {
     $mbulk_process = sub {
         my ($self, $chunk) = @_;
 
-        push @$data, {
-            type => delete $self->{_cmd}{type},
+        push @$data,
+          { type => delete $self->{_cmd}{type},
             data => delete $self->{_cmd}{data}
-        };
+          };
 
         if (scalar @$data == $arguments_num) {
 
