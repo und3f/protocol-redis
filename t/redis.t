@@ -2,7 +2,6 @@
 
 use strict;
 use warnings;
-use utf8;
 
 use Test::More tests => 34;
 
@@ -23,12 +22,12 @@ $redis->parse(":1\r\n");
 
 is_deeply $redis->get_message, {type => ':', data => '1'}, 'simple number';
 
-# Unicode test
-$redis->parse("+привет\r\n");
+# Binary test
+$redis->parse(join("\r\n", '$4', pack('C4', 0, 1, 2, 3), ''));
 
-is_deeply $redis->get_message,
-  {type => '+', data => 'привет'},
-  'unicode string';
+is_deeply [unpack('C4', $redis->get_message->{data})],
+  [0, 1, 2, 3],
+  'binary data';
 
 # Chunked message
 $redis->parse('-tes');
