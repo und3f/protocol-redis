@@ -174,7 +174,7 @@ sub _state_string_message {
     my $i = index $str, "\r\n";
 
     # string isn't full
-    return undef if $i < 0;
+    return if $i < 0;
 
     # We got full string
     $self->{_cmd}{data} = substr $str, 0, $i, '';
