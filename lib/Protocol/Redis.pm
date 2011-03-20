@@ -15,18 +15,11 @@ sub new {
     my $self = {@_};
     bless $self, $class;
 
-    $self->newline($self->{newline});
     $self->on_message($self->{on_message});
     $self->{_messages} = [];
     $self->_change_state(\&_state_new_message);
 
     $self;
-}
-
-sub newline {
-    my ($self, $newline) = @_;
-
-    $self->{_newline} = $newline or "\r\n";
 }
 
 sub encode {
@@ -51,29 +44,29 @@ sub encode {
 sub _encode_string {
     my ($self, $type, $data) = @_;
 
-    $type . $data . $self->newline;
+    $type . $data . "\r\n";
 }
 
 sub _encode_bulk {
     my ($self, $type, $data) = @_;
 
-    return '$-1' . $self->newline
+    return '$-1' . "\r\n"
       unless defined $data;
 
     '$'
       . length($data)
-      . $self->newline
+      . "\r\n"
       . $data
-      . $self->newline;
+      . "\r\n";
 }
 
 sub _encode_multi_bulk {
     my ($self, $type, $data) = @_;
 
-    return '*-1' . $self->newline
+    return '*-1' . "\r\n"
         unless defined $data;
 
-    my $message = '*' . scalar(@$data) . $self->newline;
+    my $message = '*' . scalar(@$data) . "\r\n";
     foreach my $element (@$data) {
         $message .= $self->_encode_bulk('$', $element);
     }
@@ -181,7 +174,7 @@ sub _state_string_message {
     my ($self, $chunk) = @_;
 
     my $str = $self->{_state_string} .= $chunk;
-    my $i = index $str, $self->newline;
+    my $i = index $str, "\r\n";
 
     # string isn't full
     return undef if $i < 0;
@@ -190,7 +183,7 @@ sub _state_string_message {
     my $result = substr $str, 0, $i, '';
 
     # Delete newline
-    substr $str, 0, length($self->newline), '';
+    substr $str, 0, 2, '';
 
     delete $self->{_state_string};
 
@@ -232,11 +225,13 @@ sub _state_bulk_message_data {
     my ($self, $chunk) = @_;
 
     my $str = $self->{_state_string} .= $chunk;
-    if (length $str >= $self->{_bulk_size} + length $self->newline) {
+
+    # String + newline parsed
+    if (length $str >= $self->{_bulk_size} + 2) {
         my $result = substr $str, 0, $self->{_bulk_size}, '';
 
         # Delete ending newline
-        substr $str, 0, length $self->newline, '';
+        substr $str, 0, 2, '';
 
         delete $self->{_state_string};
         delete $self->{_bulk_size};

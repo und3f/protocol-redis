@@ -3,6 +3,7 @@ This file documents the revision history for Perl extension Protocol::Redis
 0.9001 19.02.2011 00:00:00
         - encode method added
         - multi-bulk message parsing fixed. API CHANGED
+        - deleted newline method
 
 0.9    26.02.2011 00:00:00
         - on_command renamed to on_message
