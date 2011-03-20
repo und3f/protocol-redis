@@ -17,7 +17,8 @@ sub new {
 
     $self->on_message($self->{on_message});
     $self->{_messages} = [];
-    $self->_change_state(\&_state_new_message);
+
+    $self->{_state} = \&_state_new_message;
 
     $self;
 }
@@ -106,19 +107,6 @@ sub parse {
     while ($chunk = $self->{_state}->($self, $chunk)) { }
 }
 
-sub _change_state {
-    my ($self, $new_state, $chunk) = @_;
-
-    $self->{_state} = $new_state;
-
-    # Pass rest of chunk to new vertex
-    if ($chunk) {
-        $new_state->($self, $chunk);
-    } else {
-        undef;
-    }
-}
-
 sub _message_parsed {
     my ($self, $chunk) = @_;
 
@@ -131,9 +119,7 @@ sub _message_parsed {
         push @{$self->{_messages}}, $message;
     }
 
-    #$self->_change_state(\&_state_new_message, $chunk);
     $self->{_state} = \&_state_new_message;
-
     $chunk;
 }
 
@@ -153,8 +139,10 @@ sub _state_parse_message_type {
     if ($cmd) {
         if (my $parser = $message_type_parsers{$cmd}) {
             $self->{_cmd}{type} = $cmd;
-            $self->_change_state($parser, $chunk);
-        } else {
+            $self->{_state} = $parser;
+            return $chunk;
+        }
+        else {
             Carp::croak(qq/Unexpected input "$cmd"/);
         }
     }
@@ -167,7 +155,8 @@ sub _state_new_message {
 
     $self->{_state_cb} = \&_message_parsed;
 
-    $self->_change_state(\&_state_parse_message_type, $chunk);
+    $self->{_state} = \&_state_parse_message_type;
+    $chunk;
 }
 
 sub _state_string_message {
@@ -210,10 +199,12 @@ sub _state_bulk_message {
         }
         else {
             $self->{_state_cb} = $bulk_state_cb;
-            $self->_change_state(\&_state_bulk_message_data, $chunk);
+            $self->{_state}    = \&_state_bulk_message_data;
+            $chunk;
         }
     };
-    $self->_change_state(\&_state_string_message, $chunk);
+    $self->{_state} = \&_state_string_message;
+    $chunk;
 }
 
 sub _state_bulk_message_data {
@@ -268,7 +259,8 @@ sub _state_multibulk_message {
 
             # read next string
             $self->{_state_cb} = $mbulk_process;
-            $self->_change_state(\&_state_parse_message_type, $chunk);
+            $self->{_state}    = \&_state_parse_message_type;
+            $chunk;
         }
     };
 
@@ -286,12 +278,14 @@ sub _state_multibulk_message {
 
             # We got messages
             $self->{_state_cb} = $mbulk_process;
-            $self->_change_state(\&_state_parse_message_type, $chunk);
+            $self->{_state}    = \&_state_parse_message_type;
+            $chunk;
         }
     };
 
     # Get number of messages
-    $self->_change_state(\&_state_string_message, $chunk);
+    $self->{_state} = \&_state_string_message;
+    $chunk;
 }
 
 1;
