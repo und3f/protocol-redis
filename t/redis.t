@@ -4,7 +4,7 @@ use strict;
 use warnings;
 use utf8;
 
-use Test::More tests => 29;
+use Test::More tests => 30;
 
 use_ok 'Protocol::Redis';
 
@@ -69,7 +69,7 @@ is_deeply $redis->get_message,
 $redis->parse("*1\r\n\$4\r\ntest\r\n");
 
 is_deeply $redis->get_message,
-  {type => '*', data => ['test']},
+  {type => '*', data => [{type => '$', data => 'test'}]},
   'simple multibulk message';
 
 # Multi bulk message with multiple arguments
@@ -78,7 +78,13 @@ $redis->parse("\$5\r\ntest2\r\n");
 $redis->parse("\$5\r\ntest3\r\n");
 
 is_deeply $redis->get_message,
-  {type => '*', data => [qw/test1 test2 test3/]},
+  { type => '*',
+    data => [
+        {type => '$', data => 'test1'},
+        {type => '$', data => 'test2'},
+        {type => '$', data => 'test3'}
+    ]
+  },
   'multi argument multi-bulk message';
 
 $redis->parse("*0\r\n");
@@ -91,6 +97,10 @@ $redis->parse("\$4\r\ntest\r\n");
 is_deeply $redis->get_message,
   {type => '$', data => 'test'},
   'everything still works';
+
+# Multi bulk message with status items
+$redis->parse(join("\r\n", '*2', '+OK', '$4', 'test', ''));
+is_deeply $redis->get_message, {type => '*', data => [{type => '+', data => 'OK'}, {type => '$', data => 'test'}]};
 
 # Parsing with cb
 my $r = [];
