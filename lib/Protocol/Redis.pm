@@ -348,7 +348,7 @@ Encode data into redis message
 
 =head2 IRC
 
-    #ru.pm on irc.perl.org
+    #redis on irc.perl.org
     
 =head1 DEVELOPMENT
 
