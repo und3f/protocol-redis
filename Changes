@@ -6,6 +6,7 @@ This file documents the revision history for Perl extension Protocol::Redis
           format CHANGED!!!
         - deleted newline method
         - code optimization
+        - reusable tests added
 
 0.9    26.02.2011 00:00:00
         - on_command renamed to on_message

@@ -23,6 +23,12 @@ sub new {
     $self;
 }
 
+sub api_supported {
+    my ($self, $api_version) = @_;
+
+    return $api_version == 1;
+}
+
 my %message_type_encoders = (
     '+' => \&_encode_string,
     '-' => \&_encode_string,
@@ -295,7 +301,7 @@ __END__
 
 =head1 NAME
 
-Protocol::Redis - Redis protocol parser/encoder
+Protocol::Redis - Redis protocol parser/encoder.
 
 =head1 DESCRIPTION
 
@@ -335,6 +341,12 @@ Calls callback on each parsed message.
 
 Encode data into redis message. Note that this method is EXPERIMENTAL and
 might change without warning!
+
+=head2 C<api_supported>
+
+    $redis->api_supported(1) or die "API v1 not supported";
+
+Check if Protocol::Redis implementation supports specific API version.
 
 =head1 SUPPORT
 
