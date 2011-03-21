@@ -22,7 +22,7 @@ sub new {
     $self;
 }
 
-sub api_supported {
+sub use_api {
     my ($self, $api_version) = @_;
 
     return $api_version == 1;
@@ -306,6 +306,14 @@ Redis protocol parser/encoder.
 
 =head1 METHODS
 
+=head2 C<use_api>
+
+    $redis->use_api(1) or die "API v1 not supported";
+
+Tell Protocol::Redis to use specific API version. Return false if API version
+not supported. Client libraries should call this method first and check
+returned value.
+
 =head2 C<parse>
 
     $redis->parse("*2\r\n$4ping\r\n\r\n");
@@ -338,12 +346,6 @@ Calls callback on each parsed message.
 
 Encode data into redis message. Note that this method is EXPERIMENTAL and
 might change without warning!
-
-=head2 C<api_supported>
-
-    $redis->api_supported(1) or die "API v1 not supported";
-
-Check if Protocol::Redis implementation supports specific API version.
 
 =head1 SUPPORT
 

@@ -28,9 +28,9 @@ sub _apiv1_ok {
     subtest 'Protocol::Redis APIv1 ok' => sub {
         plan tests => 31;
 
-        can_ok $redis, 'parse', 'api_supported', 'on_message', 'encode';
+        can_ok $redis, 'parse', 'use_api', 'on_message', 'encode';
 
-        ok $redis->api_supported(1), '$redis->api_supported(1)';
+        ok $redis->use_api(1), '$redis->use_api(1)';
 
         # Parsing method tests
         $redis->on_message(undef);
