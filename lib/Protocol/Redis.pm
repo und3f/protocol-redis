@@ -3,7 +3,6 @@ package Protocol::Redis;
 use strict;
 use warnings;
 
-use List::Util ();
 require Carp;
 
 our $VERSION = 0.9001;
