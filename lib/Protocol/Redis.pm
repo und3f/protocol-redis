@@ -362,6 +362,10 @@ Check if Protocol::Redis implementation supports specific API version.
 
 Sergey Zasenko, C<undef@cpan.org>.
 
+=head1 CREDITS
+
+David Leadbeater (dgl)
+
 =head1 COPYRIGHT AND LICENSE
 
 Copyright (C) 2011, Sergey Zasenko.
