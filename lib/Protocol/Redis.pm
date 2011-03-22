@@ -304,6 +304,36 @@ Protocol::Redis - Redis protocol parser/encoder.
 
 Redis protocol parser/encoder.
 
+=head1 SYNOPSIS
+
+    use Protocol::Redis;
+    my $redis = Protocol::Redis->new;
+
+    # Init used API version
+    $redis->use_api(1) or die "API v1 not supported";
+
+    $redis->parse("+foo\r\n");
+
+    # get parsed message
+    my $message = $redis->get_message;
+    print "parsed message: ", $message->{data}, "\n";
+
+    # asynchronous parsing interface
+    $redis->on_message(sub {
+        my ($redis, $message) = @_;
+        print "parsed message: ", $message->{data}, "\n";
+    });
+
+    # parse pipelined message
+    $redis->parse("+bar\r\n-error\r\n");
+
+    # create message
+    print "Get key message:\n",
+      $redis->encode({type => '*', data => [
+         {type => '$', data => 'string'},
+         {type => '+', data => 'OK'}
+    ]});
+
 =head1 METHODS
 
 =head2 C<use_api>
