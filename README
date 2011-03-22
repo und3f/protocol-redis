@@ -1,8 +1,6 @@
 NAME
-    Protocol::Redis - Redis protocol parser/encoder.
-
-DESCRIPTION
-    Redis protocol parser/encoder.
+    Protocol::Redis - Redis protocol parser/encoder with asynchronous
+    capabilities.
 
 SYNOPSIS
         use Protocol::Redis;
@@ -32,6 +30,9 @@ SYNOPSIS
              {type => '$', data => 'string'},
              {type => '+', data => 'OK'}
         ]});
+
+DESCRIPTION
+    Redis protocol parser/encoder with asynchronous capabilities.
 
 METHODS
   "use_api"

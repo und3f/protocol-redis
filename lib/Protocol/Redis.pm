@@ -298,11 +298,7 @@ __END__
 
 =head1 NAME
 
-Protocol::Redis - Redis protocol parser/encoder.
-
-=head1 DESCRIPTION
-
-Redis protocol parser/encoder.
+Protocol::Redis - Redis protocol parser/encoder with asynchronous capabilities.
 
 =head1 SYNOPSIS
 
@@ -333,6 +329,10 @@ Redis protocol parser/encoder.
          {type => '$', data => 'string'},
          {type => '+', data => 'OK'}
     ]});
+
+=head1 DESCRIPTION
+
+Redis protocol parser/encoder with asynchronous capabilities.
 
 =head1 METHODS
 
