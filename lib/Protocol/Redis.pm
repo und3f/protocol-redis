@@ -332,9 +332,14 @@ Protocol::Redis - Redis protocol parser/encoder with asynchronous capabilities.
 
 =head1 DESCRIPTION
 
-Redis protocol parser/encoder with asynchronous capabilities.
+Redis protocol parser/encoder with asynchronous capabilities and L<pipelining|http://redis.io/topics/pipelining> support.
 
-=head1 METHODS
+=head1 APIv1 (DRAFT)
+
+Protocol::Redis APIv1 uses
+"L<Unified Request Protocol|http://redis.io/topics/protocol>" for message
+encoding/parsing and supports methods described further. Client libraries
+should call $redis->use_api(1) to start using APIv1.
 
 =head2 C<use_api>
 
@@ -374,8 +379,7 @@ Calls callback on each parsed message.
         {type => '*', data => [
             {type => '$', data => 'test'}]});
 
-Encode data into redis message. Note that this method is EXPERIMENTAL and
-might change without warning!
+Encode data into redis message.
 
 =head1 SUPPORT
 
