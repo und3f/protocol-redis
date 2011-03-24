@@ -32,9 +32,15 @@ SYNOPSIS
         ]});
 
 DESCRIPTION
-    Redis protocol parser/encoder with asynchronous capabilities.
+    Redis protocol parser/encoder with asynchronous capabilities and
+    pipelining <http://redis.io/topics/pipelining> support.
 
-METHODS
+APIv1 (DRAFT)
+    Protocol::Redis APIv1 uses "Unified Request Protocol
+    <http://redis.io/topics/protocol>" for message encoding/parsing and
+    supports methods described further. Client libraries should call
+    $redis->use_api(1) to start using APIv1.
+
   "use_api"
         $redis->use_api(1) or die "API v1 not supported";
 
@@ -68,8 +74,7 @@ METHODS
             {type => '*', data => [
                 {type => '$', data => 'test'}]});
 
-    Encode data into redis message. Note that this method is EXPERIMENTAL
-    and might change without warning!
+    Encode data into redis message.
 
 SUPPORT
   IRC
