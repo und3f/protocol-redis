@@ -26,7 +26,7 @@ sub _apiv1_ok {
     my $redis = shift;
 
     subtest 'Protocol::Redis APIv1 ok' => sub {
-        plan tests => 31;
+        plan tests => 32;
 
         can_ok $redis, 'parse', 'use_api', 'on_message', 'encode';
 
@@ -185,6 +185,13 @@ sub _on_message_ok {
 
     $redis->parse("+foo\r\n");
     $redis->parse("\$3\r\nbar\r\n");
+
+    is_deeply $r,
+      [{type => '+', data => 'foo'}, {type => '$', data => 'bar'}],
+      'parsing with callback';
+
+    $r = [];
+    $redis->parse("+foo\r\n\$3\r\nbar\r\n");
 
     is_deeply $r,
       [{type => '+', data => 'foo'}, {type => '$', data => 'bar'}],
