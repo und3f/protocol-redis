@@ -5,7 +5,7 @@ use warnings;
 
 require Carp;
 
-our $VERSION = 0.9001;
+our $VERSION = 0.9002;
 
 sub new {
     my $class = shift;
