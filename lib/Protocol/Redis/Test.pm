@@ -11,7 +11,7 @@ our @EXPORT = qw(protocol_redis_ok);
 use Test::More;
 require Carp;
 
-sub protocol_redis_ok {
+sub protocol_redis_ok($$) {
     my ($redis, $api_version) = @_;
 
     if ($api_version == 1) {
