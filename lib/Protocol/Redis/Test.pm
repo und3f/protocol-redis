@@ -26,7 +26,7 @@ sub _apiv1_ok {
     my $redis = shift;
 
     subtest 'Protocol::Redis APIv1 ok' => sub {
-        plan tests => 32;
+        plan tests => 36;
 
         can_ok $redis, 'parse', 'use_api', 'on_message', 'encode';
 
@@ -77,7 +77,7 @@ sub _parse_string_ok {
       {type => '-', data => 'test2'},
       'chunked string';
 
-    # Two messages together
+    # Two chunked messages together
     $redis->parse("+test");
     $redis->parse("1\r\n-test");
     $redis->parse("2\r\n");
@@ -86,6 +86,12 @@ sub _parse_string_ok {
       [{type => '+', data => 'test1'}, {type => '-', data => 'test2'}],
       'first stick message';
 
+    # Pipelined
+    $redis->parse("+OK\r\n-ERROR\r\n");
+    is_deeply
+      [$redis->get_message, $redis->get_message],
+      [{type => '+', data => 'OK'}, {type => '-', data => 'ERROR'}],
+      'pipelined status messages';
 }
 
 sub _parse_bulk_ok {
@@ -101,7 +107,7 @@ sub _parse_bulk_ok {
     $redis->parse("t2\r\n");
     is_deeply $redis->get_message,
       {type => '$', data => 'test2'},
-      'splitted bulk message';
+      'chunked bulk message';
 
     # Nil bulk message
     $redis->parse("\$-1\r\n");
@@ -110,12 +116,22 @@ sub _parse_bulk_ok {
       {type => '$', data => undef},
       'nil bulk message';
 
-    # splitted bulk message
+    # Two chunked bulk messages
     $redis->parse(join("\r\n", '$4', 'test', '+OK'));
     $redis->parse("\r\n");
     is_deeply $redis->get_message,
-      {type => '$', data => 'test'}, 'splitted message';
+      {type => '$', data => 'test'}, 'two chunked bulk messages';
     is_deeply $redis->get_message, {type => '+', data => 'OK'};
+
+    # Pipelined bulk message
+    $redis->parse(join("\r\n", ('$3', 'ok1'), ('$3', 'ok2'), ''));
+    is_deeply [$redis->get_message, $redis->get_message],
+      [{type => '$', data => 'ok1'}, {type => '$', data => 'ok2'}],
+      'piplined bulk message';
+}
+
+sub _parse_multi_bulk_ok {
+    my $redis = shift;
 
     # Multi bulk message!
     $redis->parse("*1\r\n\$4\r\ntest\r\n");
@@ -123,10 +139,6 @@ sub _parse_bulk_ok {
     is_deeply $redis->get_message,
       {type => '*', data => [{type => '$', data => 'test'}]},
       'simple multibulk message';
-}
-
-sub _parse_multi_bulk_ok {
-    my $redis = shift;
 
     # Multi bulk message with multiple arguments
     $redis->parse("*3\r\n\$5\r\ntest1\r\n");
@@ -155,19 +167,34 @@ sub _parse_multi_bulk_ok {
       'everything still works';
 
     # Multi bulk message with status items
-    $redis->parse(join("\r\n", '*2', '+OK', '$4', 'test', ''));
+    $redis->parse(join("\r\n", ('*2', '+OK', '$4', 'test'), ''));
     is_deeply $redis->get_message,
       { type => '*',
         data => [{type => '+', data => 'OK'}, {type => '$', data => 'test'}]
       };
 
     # splitted multi-bulk
-    $redis->parse(join("\r\n", '*1', '$4', 'test', '+OK'));
+    $redis->parse(join("\r\n", ('*1', '$4', 'test'), '+OK'));
     $redis->parse("\r\n");
 
     is_deeply $redis->get_message,
       {type => '*', data => [{type => '$', data => 'test'}]};
     is_deeply $redis->get_message, {type => '+', data => 'OK'};
+
+    # pipelined multi-bulk
+    $redis->parse(
+        join("\r\n",
+            ('*2', '$3', 'ok1', '$3', 'ok2'),
+            ('*1', '$3', 'ok3'), '')
+    );
+
+    is_deeply $redis->get_message,
+      { type => '*',
+        data => [{type => '$', data => 'ok1'}, {type => '$', data => 'ok2'}]
+      };
+    is_deeply $redis->get_message,
+      {type => '*', data => [{type => '$', data => 'ok3'}]};
+
 }
 
 sub _on_message_ok {
@@ -191,11 +218,11 @@ sub _on_message_ok {
       'parsing with callback';
 
     $r = [];
-    $redis->parse("+foo\r\n\$3\r\nbar\r\n");
+    $redis->parse(join("\r\n", ('+foo'), ('$3', 'bar'), ''));
 
     is_deeply $r,
       [{type => '+', data => 'foo'}, {type => '$', data => 'bar'}],
-      'parsing with callback';
+      'pipelined parsing with callback';
 
     $redis->on_message(undef);
 }
@@ -218,8 +245,9 @@ sub _encode_ok {
 
     # Encode multi-bulk
     is $redis->encode({type => '*', data => [{type => '$', data => 'test'}]}),
-      "\*1\r\n\$4\r\ntest\r\n",
+      join("\r\n", ('*1', '$4', 'test'), ''),
       'encode multi-bulk';
+
     is $redis->encode(
         {   type => '*',
             data => [
@@ -227,7 +255,7 @@ sub _encode_ok {
             ]
         }
       ),
-      "\*2\r\n\$5\r\ntest1\r\n\$5\r\ntest2\r\n",
+      join("\r\n", ('*2', '$5', 'test1', '$5', 'test2'), ''),
       'encode multi-bulk';
 
     is $redis->encode({type => '*', data => []}), "\*0\r\n",
@@ -245,7 +273,7 @@ sub _encode_ok {
             ]
         }
       ),
-      "\*3\r\n\$3\r\nfoo\r\n\$-1\r\n\$3\r\nbar\r\n",
+      join("\r\n", ('*3', '$3', 'foo', '$-1', '$3', 'bar'), ''),
       'encode multi-bulk with nil element';
 }
 
