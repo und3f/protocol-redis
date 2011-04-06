@@ -8,12 +8,18 @@ use warnings;
 use ExtUtils::MakeMaker;
 
 WriteMakefile(
-    NAME         => 'Protocol::Redis',
-    VERSION_FROM => 'lib/Protocol/Redis.pm',
-    AUTHOR       => 'Sergey Zasenko <undef@cpan.org>',
-    PREREQ_PM    => {
+    NAME          => 'Protocol::Redis',
+    AUTHOR        => 'Sergey Zasenko <undef@cpan.org>',
+    LICENSE       => 'perl',
+    ABSTRACT_FROM => 'lib/Protocol/Redis.pm',
+    VERSION_FROM  => 'lib/Protocol/Redis.pm',
+
+    BUILD_REQUIRES => {'Test::More' => '0.88'},
+    PREREQ_PM      => {
         'Carp'       => 0,
         'List::Util' => 0
     },
-    test => {TESTS => 't/*.t'}
+    META_MERGE => {
+        resources => {repository => 'http://github.com/und3f/protocol-redis',}
+    }
 );
