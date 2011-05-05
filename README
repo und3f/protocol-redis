@@ -38,15 +38,16 @@ DESCRIPTION
 APIv1 (DRAFT)
     Protocol::Redis APIv1 uses "Unified Request Protocol
     <http://redis.io/topics/protocol>" for message encoding/parsing and
-    supports methods described further. Client libraries should call
-    $redis->use_api(1) to start using APIv1.
+    supports methods described further. Client libraries should specify API
+    version during Protocol::Redis construction.
 
-  "use_api"
-        $redis->use_api(1) or die "API v1 not supported";
+  "new"
+        my $redis = Protocol::Redis->new(api => 1)
+            or die "API v1 not supported";
 
-    Tell Protocol::Redis to use specific API version. Return false if API
-    version not supported. Client libraries should call this method first
-    and check returned value.
+    Construct Protocol::Redis object with specific API version support. If
+    specified API version not supported constructor returns undef. Client
+    libraries should always specify API version.
 
   "parse"
         $redis->parse("*2\r\n$4ping\r\n\r\n");
@@ -75,6 +76,11 @@ APIv1 (DRAFT)
                 {type => '$', data => 'test'}]});
 
     Encode data into redis message.
+
+  "api"
+        my $api_version = $redis->api;
+
+    Get API version.
 
 SUPPORT
   IRC
