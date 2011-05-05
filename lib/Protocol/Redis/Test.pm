@@ -12,10 +12,10 @@ use Test::More;
 require Carp;
 
 sub protocol_redis_ok($$) {
-    my ($redis, $api_version) = @_;
+    my ($redis_class, $api_version) = @_;
 
     if ($api_version == 1) {
-        _apiv1_ok($redis);
+        _apiv1_ok($redis_class);
     }
     else {
         Carp::croak(qq/Unknown Protocol::Redis API version $api_version/);
@@ -23,14 +23,16 @@ sub protocol_redis_ok($$) {
 }
 
 sub _apiv1_ok {
-    my $redis = shift;
+    my $redis_class = shift;
 
     subtest 'Protocol::Redis APIv1 ok' => sub {
-        plan tests => 36;
+        plan tests => 37;
 
-        can_ok $redis, 'parse', 'use_api', 'on_message', 'encode';
+        my $redis = new_ok $redis_class, [api => 1];
 
-        ok $redis->use_api(1), '$redis->use_api(1)';
+        can_ok $redis, 'parse', 'api', 'on_message', 'encode';
+
+        is $redis->api, 1, '$redis->api';
 
         # Parsing method tests
         $redis->on_message(undef);

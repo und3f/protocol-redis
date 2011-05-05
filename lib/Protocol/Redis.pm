@@ -12,6 +12,9 @@ sub new {
     $class = ref $class if ref $class;
 
     my $self = {@_};
+
+    return unless $self->{api} == '1';
+
     bless $self, $class;
 
     $self->on_message($self->{on_message});
@@ -22,10 +25,10 @@ sub new {
     $self;
 }
 
-sub use_api {
-    my ($self, $api_version) = @_;
+sub api {
+    my $self = shift;
 
-    return $api_version == 1;
+    $self->{api};
 }
 
 my %message_type_encoders = (
@@ -339,15 +342,16 @@ Redis protocol parser/encoder with asynchronous capabilities and L<pipelining|ht
 Protocol::Redis APIv1 uses
 "L<Unified Request Protocol|http://redis.io/topics/protocol>" for message
 encoding/parsing and supports methods described further. Client libraries
-should call $redis->use_api(1) to start using APIv1.
+should specify API version during Protocol::Redis construction.
 
-=head2 C<use_api>
+=head2 C<new>
 
-    $redis->use_api(1) or die "API v1 not supported";
+    my $redis = Protocol::Redis->new(api => 1)
+        or die "API v1 not supported";
 
-Tell Protocol::Redis to use specific API version. Return false if API version
-not supported. Client libraries should call this method first and check
-returned value.
+Construct Protocol::Redis object with specific API version support.
+If specified API version not supported constructor returns undef.
+Client libraries should always specify API version.
 
 =head2 C<parse>
 
@@ -380,6 +384,13 @@ Calls callback on each parsed message.
             {type => '$', data => 'test'}]});
 
 Encode data into redis message.
+
+=head2 C<api>
+
+    my $api_version = $redis->api;
+
+Get API version.
+
 
 =head1 SUPPORT
 

@@ -9,11 +9,11 @@ use Protocol::Redis::Test;
 
 use_ok 'Protocol::Redis';
 
-my $redis = new_ok 'Protocol::Redis';
-
-protocol_redis_ok $redis, 1;
+protocol_redis_ok 'Protocol::Redis', 1;
 
 # Test old stuff
+my $redis = new_ok 'Protocol::Redis', [api => 1];
+
 $redis->parse("+foo\r\n");
 is_deeply $redis->get_command, {type => '+', data => 'foo'},
   'get_command works';

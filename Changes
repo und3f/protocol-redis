@@ -1,5 +1,8 @@
 This file documents the revision history for Perl extension Protocol::Redis
 
+0.9003 05.05.2011 00:00:00
+        - use_api method deprecated in favor of "api" argument of constructor
+
 0.9002 06.04.2011 00:00:00
         - tests improved
         - package metadata improved
