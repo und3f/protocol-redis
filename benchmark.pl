@@ -9,7 +9,7 @@ use FindBin;
 use lib "$FindBin::Bin/lib";
 use Protocol::Redis;
 
-my $redis = Protocol::Redis->new;
+my $redis = Protocol::Redis->new(api => 1);
 
 $redis->on_message(sub { });
 
