@@ -17,7 +17,7 @@ sub new {
 
     bless $self, $class;
 
-    $self->on_message($self->{on_message});
+    $self->on_message(delete $self->{on_message});
     $self->{_messages} = [];
 
     $self->{_state} = \&_state_new_message;
@@ -97,7 +97,9 @@ sub on_message {
 sub parse {
     my ($self, $chunk) = @_;
 
-    # Just pass chunk to current vertex
+    # Pass chunk to current vertex.
+    # Some vertices can return unparsed chunk. In this case 
+    # cycle will pass chunk to next vertex.
     1 while $chunk = $self->{_state}->($self, $chunk);
 }
 
@@ -136,9 +138,8 @@ sub _state_parse_message_type {
             $self->{_state} = $parser;
             return $chunk;
         }
-        else {
-            Carp::croak(qq/Unexpected input "$cmd"/);
-        }
+
+        Carp::croak(qq/Unexpected input "$cmd"/);
     }
 }
 
@@ -321,7 +322,7 @@ Protocol::Redis - Redis protocol parser/encoder with asynchronous capabilities.
 
 Redis protocol parser/encoder with asynchronous capabilities and L<pipelining|http://redis.io/topics/pipelining> support.
 
-=head1 APIv1 (DRAFT)
+=head1 APIv1
 
 Protocol::Redis APIv1 uses
 "L<Unified Request Protocol|http://redis.io/topics/protocol>" for message
@@ -394,7 +395,17 @@ Sergey Zasenko, C<undef@cpan.org>.
 
 =head1 CREDITS
 
+In alphabetical order
+
+=over 2
+
 David Leadbeater (dgl)
+
+Viacheslav Tykhanovskyi (vti)
+
+Yaroslav Korshak (yko)
+
+=back
 
 =head1 COPYRIGHT AND LICENSE
 
