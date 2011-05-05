@@ -94,22 +94,6 @@ sub on_message {
     $self->{_on_message_cb} = $cb;
 }
 
-sub get_command {
-    my $self = shift;
-    warn <<EOF;
-Protocol::Redis->get_command renamed to Protocol::Redis->get_message
-EOF
-    $self->get_message(@_);
-}
-
-sub on_command {
-    my $self = shift;
-    warn <<EOF;
-Protocol::Redis->on_command renamed to Protocol::Redis->on_message
-EOF
-    $self->on_message(@_);
-}
-
 sub parse {
     my ($self, $chunk) = @_;
 

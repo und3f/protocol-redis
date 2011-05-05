@@ -26,7 +26,9 @@ sub _apiv1_ok {
     my $redis_class = shift;
 
     subtest 'Protocol::Redis APIv1 ok' => sub {
-        plan tests => 37;
+        plan tests => 38;
+
+        use_ok $redis_class;
 
         my $redis = new_ok $redis_class, [api => 1];
 
@@ -288,14 +290,11 @@ Protocol::Redis::Test - reusable tests for Protocol::Redis implementations.
 
 =head1 SYNOPSIS
 
-    use Test::More plan => 5;
+    use Test::More tests => 1;
     use Protocol::Redis::Test;
 
-    use_ok 'Protocol::Redis';
-    my $redis = new_ok 'Protocol::Redis';
-
     # Test Protocol::Redis API 
-    protocol_redis_ok $redis, 1;
+    protocol_redis_ok 'Protocol::Redis', 1;
 
 =head1 DESCRIPTION
 
@@ -305,9 +304,9 @@ Reusable tests for Protocol::Redis implementations.
 
 =head2 C<protocol_redis_ok>
 
-    protocol_redis_ok $redis, 1;
+    protocol_redis_ok $redis_class, 1;
 
-Check if $redis implementation of Protocol::Redis meets API version 1
+Check if $redis_class implementation of Protocol::Redis meets API version 1
 
 =head1 SEE ALSO
 
