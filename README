@@ -35,7 +35,7 @@ DESCRIPTION
     Redis protocol parser/encoder with asynchronous capabilities and
     pipelining <http://redis.io/topics/pipelining> support.
 
-APIv1 (DRAFT)
+APIv1
     Protocol::Redis APIv1 uses "Unified Request Protocol
     <http://redis.io/topics/protocol>" for message encoding/parsing and
     supports methods described further. Client libraries should specify API
@@ -94,7 +94,13 @@ AUTHOR
     Sergey Zasenko, "undef@cpan.org".
 
 CREDITS
-    David Leadbeater (dgl)
+    In alphabetical order
+
+      David Leadbeater (dgl)
+
+      Viacheslav Tykhanovskyi (vti)
+
+      Yaroslav Korshak (yko)
 
 COPYRIGHT AND LICENSE
     Copyright (C) 2011, Sergey Zasenko.
