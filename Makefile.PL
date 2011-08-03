@@ -1,25 +1,16 @@
-#!/usr/bin/env perl
+use inc::Module::Install;
 
-use 5.008001;
+name 'Protocol-Redis';
+all_from 'lib/Protocol/Redis.pm';
 
-use strict;
-use warnings;
+requires 'Carp';
+requires 'List::Util';
+requires 'Test::More' => '0.88';
 
-use ExtUtils::MakeMaker;
+tests 't/*.t';
 
-WriteMakefile(
-    NAME          => 'Protocol::Redis',
-    AUTHOR        => 'Sergey Zasenko <undef@cpan.org>',
-    LICENSE       => 'perl',
-    ABSTRACT_FROM => 'lib/Protocol/Redis.pm',
-    VERSION_FROM  => 'lib/Protocol/Redis.pm',
+resources
+  bugtracker => 'https://github.com/und3f/protocol-redis/issues',
+  repository => 'http://github.com/und3f/protocol-redis';
 
-    BUILD_REQUIRES => {'Test::More' => '0.88'},
-    PREREQ_PM      => {
-        'Carp'       => 0,
-        'List::Util' => 0
-    },
-    META_MERGE => {
-        resources => {repository => 'http://github.com/und3f/protocol-redis',}
-    }
-);
+WriteAll;

@@ -2,10 +2,11 @@ package Protocol::Redis;
 
 use strict;
 use warnings;
+use 5.008_001;
+
+our $VERSION = 1.0001;
 
 require Carp;
-
-our $VERSION = 1.0;
 
 sub new {
     my $class = shift;
