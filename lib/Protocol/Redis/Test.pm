@@ -26,7 +26,7 @@ sub _apiv1_ok {
     my $redis_class = shift;
 
     subtest 'Protocol::Redis APIv1 ok' => sub {
-        plan tests => 38;
+        plan tests => 39;
 
         use_ok $redis_class;
 
@@ -162,6 +162,11 @@ sub _parse_multi_bulk_ok {
     $redis->parse("*0\r\n");
     is_deeply $redis->get_message,
       {type => '*', data => []},
+      'multi-bulk empty result';
+
+    $redis->parse("*-1\r\n");
+    is_deeply $redis->get_message,
+      {type => '*', data => undef},
       'multi-bulk nil result';
 
     # Does it work?

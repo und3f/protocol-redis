@@ -4,7 +4,7 @@ use strict;
 use warnings;
 use 5.008_001;
 
-our $VERSION = 1.0001;
+our $VERSION = 1.0002;
 
 require Carp;
 
@@ -265,7 +265,7 @@ sub _state_multibulk_message {
         $arguments_num = delete $self->{_cmd}{data};
         if ($arguments_num < 1) {
             $mbulk_process = undef;
-            $self->{_cmd}{data} = [];
+            $self->{_cmd}{data} = $arguments_num == 0 ? [] : undef;
             $mbulk_state_cb->($self, $chunk);
         }
         else {

@@ -1,5 +1,8 @@
 This file documents the revision history for Perl extension Protocol::Redis
 
+1.0002  16.12.2011 00:00:00
+         - fixed multi-bulk nil message
+
 1.0001  03.08.2011 00:00:00
          - use Module::Install for Makefile.PL
 
