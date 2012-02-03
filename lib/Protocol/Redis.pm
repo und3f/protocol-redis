@@ -291,10 +291,7 @@ Protocol::Redis - Redis protocol parser/encoder with asynchronous capabilities.
 =head1 SYNOPSIS
 
     use Protocol::Redis;
-    my $redis = Protocol::Redis->new;
-
-    # Init used API version
-    $redis->use_api(1) or die "API v1 not supported";
+    my $redis = Protocol::Redis->new(api => 1) or die "API v1 not supported";
 
     $redis->parse("+foo\r\n");
 

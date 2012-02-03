@@ -1,7 +1,8 @@
 This file documents the revision history for Perl extension Protocol::Redis
 
-1.0003  17.12.2011 00:00:00
+1.0003  03.02.2012 00:00:00
          - ->get_messages() optimization
+         - pod fixup
 
 1.0002  16.12.2011 00:00:00
          - fixed multi-bulk nil message
