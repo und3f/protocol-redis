@@ -1,5 +1,8 @@
 This file documents the revision history for Perl extension Protocol::Redis
 
+1.0004  10.06.2015 00:00:00
+         - re-release with newer Module::Install
+
 1.0003  03.02.2012 00:00:00
          - ->get_messages() optimization
          - pod fixup
