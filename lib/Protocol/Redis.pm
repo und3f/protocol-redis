@@ -4,7 +4,7 @@ use strict;
 use warnings;
 use 5.008_001;
 
-our $VERSION = 1.0005;
+our $VERSION = 1.0006;
 
 require Carp;
 
@@ -397,6 +397,10 @@ In alphabetical order
 =over 2
 
 David Leadbeater (dgl)
+
+Viacheslav Tykhanovskyi (vti)
+
+Yaroslav Korshak (yko)
 
 =back
 
