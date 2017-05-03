@@ -4,7 +4,7 @@ use strict;
 use warnings;
 use 5.008_001;
 
-our $VERSION = 1.0004;
+our $VERSION = 1.0005;
 
 require Carp;
 
@@ -398,15 +398,11 @@ In alphabetical order
 
 David Leadbeater (dgl)
 
-Viacheslav Tykhanovskyi (vti)
-
-Yaroslav Korshak (yko)
-
 =back
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (C) 2011, Sergey Zasenko.
+Copyright (C) 2011-2017, Sergey Zasenko.
 
 This program is free software, you can redistribute it and/or modify it under
 the same terms as Perl 5.10.

@@ -95,12 +95,8 @@ CREDITS
 
       David Leadbeater (dgl)
 
-      Viacheslav Tykhanovskyi (vti)
-
-      Yaroslav Korshak (yko)
-
 COPYRIGHT AND LICENSE
-    Copyright (C) 2011, Sergey Zasenko.
+    Copyright (C) 2011-2017, Sergey Zasenko.
 
     This program is free software, you can redistribute it and/or modify it
     under the same terms as Perl 5.10.

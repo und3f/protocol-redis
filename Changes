@@ -1,5 +1,8 @@
 This file documents the revision history for Perl extension Protocol::Redis
 
+1.0005  03.05.2017 00:00:00
+         - use ExtUtils::MakeMaker for Makefile.PL
+
 1.0004  10.06.2015 00:00:00
          - re-release with newer Module::Install
 
