@@ -32,58 +32,45 @@ sub api {
     $self->{api};
 }
 
-my %message_type_encoders = (
-    '+' => \&_encode_string,
-    '-' => \&_encode_string,
-    ':' => \&_encode_string,
-    '$' => \&_encode_bulk,
-    '*' => \&_encode_multi_bulk,
-);
-
 sub encode {
     my ($self, $message) = @_;
 
-    if (my $encoder = $message_type_encoders{$message->{type}}) {
-        $encoder->($self, $message);
-    }
-    else {
-        Carp::croak(qq/Unknown message type $message->{type}/);
-    }
-}
+    my @stack = $message;
+    my $e_message = '';
+    while (@stack) {
+        my $message = shift @stack;
 
-sub _encode_string {
-    my ($self, $message) = @_;
+        if ($message->{type} eq '+' or $message->{type} eq '-' or $message->{type} eq ':') {
+            $e_message .= $message->{type} . $message->{data} . "\r\n";
+        }
+        elsif ($message->{type} eq '$') {
+            my $data = $message->{data};
 
-    $message->{type} . $message->{data} . "\r\n";
-}
+            if (defined $data) {
+                $e_message .= '$' . length($data) . "\r\n" . $data . "\r\n";
+            }
+            else {
+                $e_message .= '$-1' . "\r\n";
+            }
+        }
+        elsif ($message->{type} eq '*') {
+            my $data = $message->{data};
 
-sub _encode_bulk {
-    my ($self, $message) = @_;
-
-    my $data = $message->{data};
-
-    return '$-1' . "\r\n"
-      unless defined $data;
-
-    '$' . length($data) . "\r\n" . $data . "\r\n";
-}
-
-sub _encode_multi_bulk {
-    my ($self, $message) = @_;
-
-    my $data = $message->{data};
-
-    return '*-1' . "\r\n"
-      unless defined $data;
-
-    my $e_message = '*' . scalar(@$data) . "\r\n";
-    foreach my $element (@$data) {
-        $e_message .= $self->encode($element);
+            if (defined $data) {
+                $e_message .= '*' . scalar(@$data) . "\r\n";
+                unshift @stack, @$data;
+            }
+            else {
+                $e_message .= '*-1' . "\r\n";
+            }
+        }
+        else {
+            Carp::croak(qq/Unknown message type $message->{type}/);
+        }
     }
 
-    $e_message;
+    return $e_message;
 }
-
 
 sub get_message {
     shift @{$_[0]->{_messages}};
