@@ -116,8 +116,8 @@ sub _parse_bulk_ok {
     # Nil bulk message
     $redis->parse("\$-1\r\n");
 
-    is_deeply $redis->get_message,
-      {type => '$', data => undef},
+    my $message = $redis->get_message;
+    ok defined($message) && !defined($message->{data}),
       'nil bulk message';
 
     # Two chunked bulk messages
@@ -165,8 +165,8 @@ sub _parse_multi_bulk_ok {
       'multi-bulk empty result';
 
     $redis->parse("*-1\r\n");
-    is_deeply $redis->get_message,
-      {type => '*', data => undef},
+    my $message = $redis->get_message;
+    ok defined($message) && !defined($message->{data}),
       'multi-bulk nil result';
 
     # Does it work?
