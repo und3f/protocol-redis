@@ -1,4 +1,4 @@
-use 5.010001;
+use 5.008001;
  
 use strict;
 use warnings;
@@ -20,6 +20,7 @@ WriteMakefile(
         },
     },
 
+    MIN_PERL_VERSION => '5.008001',
     PREREQ_PM => {
         'Carp' => 0,
         'List::Util' => 0,
