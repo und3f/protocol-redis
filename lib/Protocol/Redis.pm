@@ -21,8 +21,6 @@ sub new {
     $self->on_message(delete $self->{on_message});
     $self->{_messages} = [];
 
-    $self->{_state} = \&_state_new_message;
-
     $self;
 }
 
@@ -91,194 +89,89 @@ sub get_message {
 
 sub on_message {
     my ($self, $cb) = @_;
-    $self->{_on_message_cb} = $cb;
+    $self->{_on_message_cb} = $cb || \&_gather_messages;
 }
 
 sub parse {
-    my ($self, $chunk) = @_;
+    my $self = shift;
+    $self->{buf} .= shift;
 
-    # Pass chunk to current vertex.
-    # Some vertices can return unparsed chunk. In this case 
-    # cycle will pass chunk to next vertex.
-    1 while $chunk = $self->{_state}->($self, $chunk);
-}
+    my $curr = $self->{curr} ||= {};
+    my $buf  = \$self->{buf};
 
-sub _message_parsed {
-    my ($self, $chunk) = @_;
+    CHUNK:
+    while (length $$buf) {
 
-    my $message = delete $self->{_cmd};
+        # Look for message type and get the actual data,
+        # length of the bulk string or the size of the array
+        if (!$curr->{type}) {
+            my $pos = index $$buf, "\r\n";
+            return if $pos < 0; # Wait for more data
 
-    if (my $cb = $self->{_on_message_cb}) {
-        $cb->($self, $message);
-    }
-    else {
-        push @{$self->{_messages}}, $message;
-    }
-
-    $self->{_state} = \&_state_new_message;
-    $chunk;
-}
-
-my %message_type_parsers = (
-    '+' => \&_state_string_message,
-    '-' => \&_state_string_message,
-    ':' => \&_state_string_message,
-    '$' => \&_state_bulk_message,
-    '*' => \&_state_multibulk_message,
-);
-
-sub _state_parse_message_type {
-    my ($self, $chunk) = @_;
-
-    my $cmd = substr $chunk, 0, 1, '';
-
-    if ($cmd) {
-        if (my $parser = $message_type_parsers{$cmd}) {
-            $self->{_cmd}{type} = $cmd;
-            $self->{_state} = $parser;
-            return $chunk;
+            $curr->{type} = substr $$buf, 0, 1;
+            $curr->{len}  = substr $$buf, 1, $pos - 1;
+            substr $$buf, 0, $pos + 2, ''; # Remove type + length/data + \r\n
         }
 
-        Carp::croak(qq/Unexpected input "$cmd"/);
-    }
-}
+        # Bulk Strings
+        if ($curr->{type} eq '$') {
+            if ($curr->{len} == -1) {
+                $curr->{data} = undef;
+            }
+            elsif (length($$buf) - 2 < $curr->{len}) {
+                return; # Wait for more data
+            }
+            else {
+                $curr->{data} = substr $$buf, 0, $curr->{len}, '';
+            }
 
-sub _state_new_message {
-    my ($self, $chunk) = @_;
-
-    $self->{_cmd} = {type => undef, data => undef};
-
-    $self->{_state_cb} = \&_message_parsed;
-
-    $self->{_state} = \&_state_parse_message_type;
-    $chunk;
-}
-
-sub _state_string_message {
-    my ($self, $chunk) = @_;
-
-    my $str = $self->{_state_string} .= $chunk;
-    my $i = index $str, "\r\n";
-
-    # string isn't full
-    return if $i < 0;
-
-    # We got full string
-    $self->{_cmd}{data} = substr $str, 0, $i, '';
-
-    # Delete newline
-    substr $str, 0, 2, '';
-
-    delete $self->{_state_string};
-
-    $self->{_state_cb}->($self, $str);
-}
-
-sub _state_bulk_message {
-    my ($self, $chunk) = @_;
-
-    my $bulk_state_cb = $self->{_state_cb};
-
-    # Read bulk message size
-    $self->{_state_cb} = sub {
-        my ($self, $chunk) = @_;
-
-        $self->{_bulk_size} = delete $self->{_cmd}{data};
-
-        if ($self->{_bulk_size} == -1) {
-
-            # Nil
-            $self->{_cmd}{data} = undef;
-            $bulk_state_cb->($self, $chunk);
+            substr $$buf, 0, 2, ''; # Remove \r\n
         }
+
+        # Simple Strings, Errors, Integers
+        elsif ($curr->{type} eq '+' or $curr->{type} eq '-' or $curr->{type} eq ':') {
+            $curr->{data} = delete $curr->{len};
+        }
+
+        # Arrays
+        elsif ($curr->{type} eq '*') {
+            $curr->{data} = $curr->{len} < 0 ? undef : [];
+
+            # Fill the array with data
+            if ($curr->{len} > 0) {
+                $curr = $self->{curr} = {parent => $curr};
+                next CHUNK;
+            }
+        }
+
+        # Should not come to this
         else {
-            $self->{_state_cb} = $bulk_state_cb;
-            $self->{_state}    = \&_state_bulk_message_data;
-            $chunk;
+            Carp::croak(qq/Unknown message type $curr->{type}/);
         }
-    };
-    $self->{_state} = \&_state_string_message;
-    $chunk;
+
+        # Fill parent array with data
+        while (my $parent = delete $curr->{parent}) {
+            delete $curr->{len};
+            push @{$parent->{data}}, $curr;
+
+            if (@{$parent->{data}} < $parent->{len}) {
+                $curr = $self->{curr} = {parent => $parent};
+                next CHUNK;
+            }
+            else {
+                $curr = $self->{curr} = $parent;
+            }
+        }
+
+        # Emit a complete message
+        delete $curr->{len};
+        $self->{_on_message_cb}->($self, $curr);
+        $curr = $self->{curr} = {};
+    }
 }
 
-sub _state_bulk_message_data {
-    my ($self, $chunk) = @_;
-
-    my $str = $self->{_state_string} .= $chunk;
-
-    # String + newline parsed
-    return unless length $str >= $self->{_bulk_size} + 2;
-
-    $self->{_cmd}{data} = substr $str, 0, $self->{_bulk_size}, '';
-
-    # Delete ending newline
-    substr $str, 0, 2, '';
-
-    delete $self->{_state_string};
-    delete $self->{_bulk_size};
-
-    $self->{_state_cb}->($self, $str);
-}
-
-sub _state_multibulk_message {
-    my ($self, $chunk) = @_;
-
-    my $mbulk_state_cb = delete $self->{_state_cb};
-    my $data           = [];
-    my $mbulk_process;
-
-    my $arguments_num;
-
-    $mbulk_process = sub {
-        my ($self, $chunk) = @_;
-
-        push @$data,
-          { type => delete $self->{_cmd}{type},
-            data => delete $self->{_cmd}{data}
-          };
-
-        if (scalar @$data == $arguments_num) {
-
-            # Cleanup
-            $mbulk_process = undef;
-            delete $self->{_state_cb};
-
-            # Return message
-            $self->{_cmd}{type} = '*';
-            $self->{_cmd}{data} = $data;
-            $mbulk_state_cb->($self, $chunk);
-        }
-        else {
-
-            # read next string
-            $self->{_state_cb} = $mbulk_process;
-            $self->{_state}    = \&_state_parse_message_type;
-            $chunk;
-        }
-    };
-
-    $self->{_state_cb} = sub {
-        my ($self, $chunk) = @_;
-
-        # Number of Multi-Bulk message
-        $arguments_num = delete $self->{_cmd}{data};
-        if ($arguments_num < 1) {
-            $mbulk_process = undef;
-            $self->{_cmd}{data} = $arguments_num == 0 ? [] : undef;
-            $mbulk_state_cb->($self, $chunk);
-        }
-        else {
-
-            # We got messages
-            $self->{_state_cb} = $mbulk_process;
-            $self->{_state}    = \&_state_parse_message_type;
-            $chunk;
-        }
-    };
-
-    # Get number of messages
-    $self->{_state} = \&_state_string_message;
-    $chunk;
+sub _gather_messages {
+    push @{$_[0]->{_messages}}, $_[1];
 }
 
 1;
