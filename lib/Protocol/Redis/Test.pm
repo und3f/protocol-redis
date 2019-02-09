@@ -26,7 +26,7 @@ sub _apiv1_ok {
     my $redis_class = shift;
 
     subtest 'Protocol::Redis APIv1 ok' => sub {
-        plan tests => 39;
+        plan tests => 40;
 
         use_ok $redis_class;
 
@@ -249,6 +249,8 @@ sub _encode_ok {
     # Encode bulk message
     is $redis->encode({type => '$', data => 'test'}), "\$4\r\ntest\r\n",
       'encode bulk';
+    is $redis->encode({type => '$', data => "\0\r\n"}), "\$3\r\n\0\r\n\r\n",
+      'encode binary bulk';
     is $redis->encode({type => '$', data => undef}), "\$-1\r\n",
       'encode nil bulk';
 
