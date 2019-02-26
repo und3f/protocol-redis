@@ -23,7 +23,6 @@ WriteMakefile(
     MIN_PERL_VERSION => '5.008001',
     PREREQ_PM => {
         'Carp' => 0,
-        'List::Util' => 0,
         'Test::More' => '0.94',
     },
     TEST_REQUIRES => {
