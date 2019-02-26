@@ -24,6 +24,7 @@ WriteMakefile(
     PREREQ_PM => {
         'Carp' => 0,
         'List::Util' => 0,
+        'Test::More' => '0.94',
     },
     TEST_REQUIRES => {
         'Test::More' => '0.88'
