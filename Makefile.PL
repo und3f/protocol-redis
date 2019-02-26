@@ -26,7 +26,7 @@ WriteMakefile(
         'Test::More' => '0.94',
     },
     TEST_REQUIRES => {
-        'Test::More' => '0.88'
+        'Test::More' => '0.94'
     },
     test => {TESTS =>  't/*.t'},
 
