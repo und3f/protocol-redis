@@ -10,13 +10,19 @@ WriteMakefile(
     VERSION_FROM  => 'lib/Protocol/Redis.pm',
     ABSTRACT_FROM => 'lib/Protocol/Redis.pm',
     AUTHOR        => 'Sergey Zasenko <sergey@zasenko.name>',
-    LICENSE       => 'perl',
+    LICENSE       => 'perl_5',
 
     META_MERGE => {
-        resources => {
-            license    => 'http://dev.perl.org/licenses/',
-            repository => 'https://github.com/und3f/protocol-redis',
-            bugtracker => 'https://github.com/und3f/protocol-redis/issues',
+        dynamic_config => 0,
+        'meta-spec'    => { version => 2 },
+        resources      => {
+            license    => [ 'http://dev.perl.org/licenses/' ],
+            repository => {
+                type   => 'git',
+                url    => 'https://github.com/und3f/protocol-redis.git',
+                web    => 'https://github.com/und3f/protocol-redis',
+            },
+            bugtracker => { web => 'https://github.com/und3f/protocol-redis/issues' },
         },
     },
 
