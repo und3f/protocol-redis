@@ -32,58 +32,48 @@ sub api {
     $self->{api};
 }
 
-my %message_type_encoders = (
-    '+' => \&_encode_string,
-    '-' => \&_encode_string,
-    ':' => \&_encode_string,
-    '$' => \&_encode_bulk,
-    '*' => \&_encode_multi_bulk,
-);
-
 sub encode {
     my ($self, $message) = @_;
+    my $encoded_message = '';
 
-    if (my $encoder = $message_type_encoders{$message->{type}}) {
-        $encoder->($self, $message);
+    my @stack = ($message);
+    while (@stack) {
+        my $message = shift @stack;
+        my $type = $message->{type};
+        my $data = $message->{data};
+
+        my $type_i = index('+-:$*', $type);
+
+        if ($type_i >= 0 && $type_i <= 2) {
+            # String, error, integer
+            $encoded_message .= "$type$data\r\n";
+        }
+        elsif ($type_i == 3) {
+            # Bulk string
+            if (defined $data) {
+                $encoded_message .= '$' . length($data) . "\r\n$data\r\n";
+            }
+            else {
+                $encoded_message .= "\$-1\r\n";
+            }
+        }
+        elsif ($type_i == 4) {
+            # Array (multi bulk)
+            if (defined $data) {
+                $encoded_message .= '*' . scalar(@$data) . "\r\n";
+                unshift @stack, @$data;
+            }
+            else {
+                $encoded_message .= "*-1\r\n";
+            }
+        }
+        else {
+            Carp::croak(qq/Unknown message type $type/);
+        }
     }
-    else {
-        Carp::croak(qq/Unknown message type $message->{type}/);
-    }
+
+    return $encoded_message;
 }
-
-sub _encode_string {
-    my ($self, $message) = @_;
-
-    $message->{type} . $message->{data} . "\r\n";
-}
-
-sub _encode_bulk {
-    my ($self, $message) = @_;
-
-    my $data = $message->{data};
-
-    return '$-1' . "\r\n"
-      unless defined $data;
-
-    '$' . length($data) . "\r\n" . $data . "\r\n";
-}
-
-sub _encode_multi_bulk {
-    my ($self, $message) = @_;
-
-    my $data = $message->{data};
-
-    return '*-1' . "\r\n"
-      unless defined $data;
-
-    my $e_message = '*' . scalar(@$data) . "\r\n";
-    foreach my $element (@$data) {
-        $e_message .= $self->encode($element);
-    }
-
-    $e_message;
-}
-
 
 sub get_message {
     shift @{$_[0]->{_messages}};
