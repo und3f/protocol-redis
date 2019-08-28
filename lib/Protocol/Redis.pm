@@ -108,12 +108,10 @@ sub parse {
         elsif ($message->{type} eq '$') {
             if ($message->{_argument} eq '-1') {
                 $message->{data} = undef;
-                delete $message->{_argument};
             }
-            elsif (length($$buffer) - 2 >= $message->{_argument}) {
+            elsif (length($$buffer) >= $message->{_argument} + 2) {
                 $message->{data} = substr $$buffer, 0, $message->{_argument}, '';
                 substr $$buffer, 0, 2, ''; # Remove \r\n
-                delete $message->{_argument};
             }
             else {
                 return # Wait more data
@@ -123,14 +121,11 @@ sub parse {
         elsif ($message->{type} eq '*') {
             if ($message->{_argument} eq '-1') {
                 $message->{data} = undef;
-                delete $message->{_argument};
             } else {
                 $message->{data} = [];
                 if ($message->{_argument} > 0) {
                     $message = $self->{_message} = {_parent => $message};
                     next;
-                } else {
-                    delete $message->{_argument};
                 }
             }
         }
@@ -138,6 +133,9 @@ sub parse {
         else {
             Carp::croak(qq/Unexpected input "$self->{_message}{type}"/);
         }
+
+        delete $message->{_argument};
+        delete $self->{_message};
 
         # Fill parents with data
         while (my $parent = delete $message->{_parent}) {
@@ -148,12 +146,11 @@ sub parse {
                 next CHUNK;
             }
             else {
-                $message = $self->{_message} = $parent;
+                $message = $parent;
                 delete $parent->{_argument};
             }
         }
 
-        # Emit parsed message
         $self->{_on_message_cb}->($self, $message);
         $message = $self->{_message} = {};
     }
