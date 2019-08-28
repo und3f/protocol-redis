@@ -26,7 +26,7 @@ sub _apiv1_ok {
     my $redis_class = shift;
 
     subtest 'Protocol::Redis APIv1 ok' => sub {
-        plan tests => 40;
+        plan tests => 41;
 
         use_ok $redis_class;
 
@@ -189,6 +189,21 @@ sub _parse_multi_bulk_ok {
     is_deeply $redis->get_message,
       {type => '*', data => [{type => '$', data => 'test'}]};
     is_deeply $redis->get_message, {type => '+', data => 'OK'};
+
+    # Another splitted multi-bulk message
+    $redis->parse("*4\r\n\$-1\r\n\$-1");
+    $redis->parse("\r\n\$5\r\ntest2\r\n");
+    $redis->parse("\$5\r\ntest3\r");
+    $redis->parse("\n");
+    is_deeply $redis->get_message, {
+        type => '*',
+        data => [
+            {type => '$', data => undef},
+            {type => '$', data => undef},
+            {type => '$', data => 'test2'},
+            {type => '$', data => 'test3'}
+        ]
+    };
 
     # pipelined multi-bulk
     $redis->parse(
