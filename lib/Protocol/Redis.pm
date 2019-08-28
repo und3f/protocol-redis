@@ -93,80 +93,82 @@ sub on_message {
 }
 
 sub parse {
-    my $self = shift;
-    $self->{buf} .= shift;
+    my $self        = shift;
+    $self->{_buffer}.= shift;
 
-    my $curr = $self->{curr} ||= {};
-    my $buf  = \$self->{buf};
+    my $message = $self->{_message} ||= {};
+    my $buffer  = \$self->{_buffer};
 
     CHUNK:
-    while (length $$buf) {
+    while ((my $pos = index($$buffer, "\r\n")) != -1) {
+        # Check our state: are we parsing new message or completing existing
+        if (!$message->{type}) {
+            if ($pos < 1) {
+                Carp::croak(qq/Unexpected input "$$buffer"/);
+            }
 
-        # Look for message type and get the actual data,
-        # length of the bulk string or the size of the array
-        if (!$curr->{type}) {
-            my $pos = index $$buf, "\r\n";
-            return if $pos < 0; # Wait for more data
-
-            $curr->{type} = substr $$buf, 0, 1;
-            $curr->{len}  = substr $$buf, 1, $pos - 1;
-            substr $$buf, 0, $pos + 2, ''; # Remove type + length/data + \r\n
+            $message->{type} = substr $$buffer, 0, 1;
+            $message->{_argument}  = substr $$buffer, 1, $pos - 1;
+            substr $$buffer, 0, $pos + 2, ''; # Remove type + argument + \r\n
         }
-
-        # Bulk Strings
-        if ($curr->{type} eq '$') {
-            if ($curr->{len} == -1) {
-                $curr->{data} = undef;
-            }
-            elsif (length($$buf) - 2 < $curr->{len}) {
-                return; # Wait for more data
-            }
-            else {
-                $curr->{data} = substr $$buf, 0, $curr->{len}, '';
-            }
-
-            substr $$buf, 0, 2, ''; # Remove \r\n
-        }
+        my $type = $message->{type};
 
         # Simple Strings, Errors, Integers
-        elsif ($curr->{type} eq '+' or $curr->{type} eq '-' or $curr->{type} eq ':') {
-            $curr->{data} = delete $curr->{len};
+        if ($type eq ':' || $type eq '+' || $type eq '-') {
+            $message->{data} = delete $message->{_argument};
         }
-
-        # Arrays
-        elsif ($curr->{type} eq '*') {
-            $curr->{data} = $curr->{len} < 0 ? undef : [];
-
-            # Fill the array with data
-            if ($curr->{len} > 0) {
-                $curr = $self->{curr} = {parent => $curr};
-                next CHUNK;
+        # Bulk Strings
+        elsif ($type eq '$') {
+            if ($message->{_argument} eq '-1') {
+                $message->{data} = undef;
+                delete $message->{_argument};
+            }
+            elsif (length($$buffer) - 2 >= $message->{_argument}) {
+                $message->{data} = substr $$buffer, 0, $message->{_argument}, '';
+                substr $$buffer, 0, 2, ''; # Remove \r\n
+                delete $message->{_argument};
+            }
+            else {
+                return # Wait more data
             }
         }
-
-        # Should not come to this
+        # Arrays
+        elsif ($type eq '*') {
+            if ($message->{_argument} eq '-1') {
+                $message->{data} = undef;
+                delete $message->{_argument};
+            } else {
+                $message->{data} = [];
+                if ($message->{_argument} > 0) {
+                    $message = $self->{_message} = {_parent => $message};
+                    next;
+                } else {
+                    delete $message->{_argument};
+                }
+            }
+        }
+        # Invalid input
         else {
-            Carp::croak(qq/Unknown message type $curr->{type}/);
+            Carp::croak(qq/Unexpected input "$self->{_message}{type}"/);
         }
 
-        # Fill parent array with data
-        while (my $parent = delete $curr->{parent}) {
-            delete $curr->{len};
-            push @{$parent->{data}}, $curr;
+        # Fill parents with data
+        while (my $parent = delete $message->{_parent}) {
+            push @{$parent->{data}}, $message;
 
-            if (@{$parent->{data}} < $parent->{len}) {
-                $curr = $self->{curr} = {parent => $parent};
+            if (@{$parent->{data}} < $parent->{_argument}) {
+                $message = $self->{_message} = {_parent => $parent};
                 next CHUNK;
             }
             else {
-                $curr = $self->{curr} = $parent;
+                $message = $self->{_message} = $parent;
+                delete $parent->{_argument};
             }
         }
 
-        # Emit a complete message
-        delete $curr->{len};
-        $self->{_on_message_cb}->($self, $curr);
-        $curr = $self->{curr} = {};
+        # Emit parsed message
+        $self->{_on_message_cb}->($self, $message);
+        $message = $self->{_message} = {};
     }
 }
 
