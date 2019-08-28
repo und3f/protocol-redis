@@ -1,6 +1,6 @@
 This file documents the revision history for Perl extension Protocol::Redis
 
-1.0010  00.00.0000 00:00:00
+1.0010  28.08.2019 00:00:00
          - code cleanup, prerequirements improvement, updated metadata to
            meta-spec (Grinnz)
          - tests improved with binary-safe encoding tests (Grinnz)
