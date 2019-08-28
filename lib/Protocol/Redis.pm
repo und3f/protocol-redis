@@ -34,42 +34,45 @@ sub api {
 
 sub encode {
     my ($self, $message) = @_;
+    my $encoded_message = '';
 
-    my @stack = $message;
-    my $e_message = '';
+    my @stack = ($message);
     while (@stack) {
         my $message = shift @stack;
+        my $type = $message->{type};
+        my $data = $message->{data};
 
-        if ($message->{type} eq '+' or $message->{type} eq '-' or $message->{type} eq ':') {
-            $e_message .= $message->{type} . $message->{data} . "\r\n";
+        my $type_i = index('+-:$*', $type);
+
+        if ($type_i >= 0 && $type_i <= 2) {
+            # String, error, integer
+            $encoded_message .= "$type$data\r\n";
         }
-        elsif ($message->{type} eq '$') {
-            my $data = $message->{data};
-
+        elsif ($type_i == 3) {
+            # Bulk string
             if (defined $data) {
-                $e_message .= '$' . length($data) . "\r\n" . $data . "\r\n";
+                $encoded_message .= '$' . length($data) . "\r\n$data\r\n";
             }
             else {
-                $e_message .= '$-1' . "\r\n";
+                $encoded_message .= "\$-1\r\n";
             }
         }
-        elsif ($message->{type} eq '*') {
-            my $data = $message->{data};
-
+        elsif ($type_i == 4) {
+            # Array (multi bulk)
             if (defined $data) {
-                $e_message .= '*' . scalar(@$data) . "\r\n";
+                $encoded_message .= '*' . scalar(@$data) . "\r\n";
                 unshift @stack, @$data;
             }
             else {
-                $e_message .= '*-1' . "\r\n";
+                $encoded_message .= "*-1\r\n";
             }
         }
         else {
-            Carp::croak(qq/Unknown message type $message->{type}/);
+            Carp::croak(qq/Unknown message type $type/);
         }
     }
 
-    return $e_message;
+    return $encoded_message;
 }
 
 sub get_message {
