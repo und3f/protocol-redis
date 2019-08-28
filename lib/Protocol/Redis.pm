@@ -40,14 +40,12 @@ sub encode {
         my $type = $message->{type};
         my $data = $message->{data};
 
-        my $type_i = index('+-:$*', $type);
-
-        if ($type_i >= 0 && $type_i <= 2) {
-            # String, error, integer
+        # String, error, integer
+        if ($type eq '+' || $type eq ':' || $type eq '-') {
             $encoded_message .= "$type$data\r\n";
         }
-        elsif ($type_i == 3) {
-            # Bulk string
+        # Bulk string
+        elsif ($type eq '$') {
             if (defined $data) {
                 $encoded_message .= '$' . length($data) . "\r\n$data\r\n";
             }
@@ -55,8 +53,8 @@ sub encode {
                 $encoded_message .= "\$-1\r\n";
             }
         }
-        elsif ($type_i == 4) {
-            # Array (multi bulk)
+        # Array (multi bulk)
+        elsif ($type eq '*') {
             if (defined $data) {
                 $encoded_message .= '*' . scalar(@$data) . "\r\n";
                 unshift @stack, @$data;
