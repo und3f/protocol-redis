@@ -4,7 +4,7 @@ use strict;
 use warnings;
 use 5.008_001;
 
-our $VERSION = '1.0006';
+our $VERSION = '1.0010';
 
 require Carp;
 
@@ -284,11 +284,15 @@ Viacheslav Tykhanovskyi (vti)
 
 Yaroslav Korshak (yko)
 
+Dan Book (Grinnz)
+
+Jan Henning Thorsen (jhthorsen)
+
 =back
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (C) 2011-2017, Sergey Zasenko.
+Copyright (C) 2011-2019, Sergey Zasenko.
 
 This program is free software, you can redistribute it and/or modify it under
 the same terms as Perl 5.10.
