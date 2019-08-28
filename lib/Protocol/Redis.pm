@@ -275,15 +275,15 @@ In alphabetical order
 
 =over 2
 
+Dan Book (Grinnz)
+
 David Leadbeater (dgl)
+
+Jan Henning Thorsen (jhthorsen)
 
 Viacheslav Tykhanovskyi (vti)
 
 Yaroslav Korshak (yko)
-
-Dan Book (Grinnz)
-
-Jan Henning Thorsen (jhthorsen)
 
 =back
 

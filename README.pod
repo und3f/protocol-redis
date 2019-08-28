@@ -1,0 +1,131 @@
+=head1 NAME
+
+Protocol::Redis - Redis protocol parser/encoder with asynchronous capabilities.
+
+=head1 SYNOPSIS
+
+    use Protocol::Redis;
+    my $redis = Protocol::Redis->new(api => 1) or die "API v1 not supported";
+
+    $redis->parse("+foo\r\n");
+
+    # get parsed message
+    my $message = $redis->get_message;
+    print "parsed message: ", $message->{data}, "\n";
+
+    # asynchronous parsing interface
+    $redis->on_message(sub {
+        my ($redis, $message) = @_;
+        print "parsed message: ", $message->{data}, "\n";
+    });
+
+    # parse pipelined message
+    $redis->parse("+bar\r\n-error\r\n");
+
+    # create message
+    print "Get key message:\n",
+      $redis->encode({type => '*', data => [
+         {type => '$', data => 'string'},
+         {type => '+', data => 'OK'}
+    ]});
+
+=head1 DESCRIPTION
+
+Redis protocol parser/encoder with asynchronous capabilities and L<pipelining|http://redis.io/topics/pipelining> support.
+
+=head1 APIv1
+
+Protocol::Redis APIv1 uses
+"L<Unified Request Protocol|http://redis.io/topics/protocol>" for message
+encoding/parsing and supports methods described further. Client libraries
+should specify API version during Protocol::Redis construction.
+
+=head2 C<new>
+
+    my $redis = Protocol::Redis->new(api => 1)
+        or die "API v1 not supported";
+
+Construct Protocol::Redis object with specific API version support.
+If specified API version not supported constructor returns undef.
+Client libraries should always specify API version.
+
+=head2 C<parse>
+
+    $redis->parse("*2\r\n$4ping\r\n\r\n");
+
+Parse Redis protocol chunk.
+
+=head2 C<get_message>
+
+    while (my $message = $redis->get_message) {
+        ...
+    }
+
+Get parsed message or undef.
+
+=head2 C<on_message>
+
+    $redis->on_message(sub {
+        my ($redis, $message) = @_;
+
+    }
+
+Calls callback on each parsed message.
+
+=head2 C<encode>
+    
+    my $string = $redis->encode({type => '+', data => 'test'});
+    $string = $redis->encode(
+        {type => '*', data => [
+            {type => '$', data => 'test'}]});
+
+Encode data into redis message.
+
+=head2 C<api>
+
+    my $api_version = $redis->api;
+
+Get API version.
+
+
+=head1 SUPPORT
+
+=head2 IRC
+
+    #redis on irc.perl.org
+    
+=head1 DEVELOPMENT
+
+=head2 Repository
+
+    http://github.com/und3f/protocol-redis
+
+=head1 AUTHOR
+
+Sergey Zasenko, C<undef@cpan.org>.
+
+=head1 CREDITS
+
+In alphabetical order
+
+=over 2
+
+Dan Book (Grinnz)
+
+David Leadbeater (dgl)
+
+Jan Henning Thorsen (jhthorsen)
+
+Viacheslav Tykhanovskyi (vti)
+
+Yaroslav Korshak (yko)
+
+=back
+
+=head1 COPYRIGHT AND LICENSE
+
+Copyright (C) 2011-2019, Sergey Zasenko.
+
+This program is free software, you can redistribute it and/or modify it under
+the same terms as Perl 5.10.
+
