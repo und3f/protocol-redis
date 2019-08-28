@@ -30,41 +30,41 @@ sub api {
     $self->{api};
 }
 
+my %simple_types = ('+' => 1, '-' => 1, ':' => 1);
+my $rn = "\r\n";
+
 sub encode {
-    my ($self, $message) = @_;
+    my $self = shift;
+
     my $encoded_message = '';
+    while (@_) {
+        my $message = shift;
 
-    my @stack = ($message);
-    while (@stack) {
-        my $message = shift @stack;
-        my $type = $message->{type};
-        my $data = $message->{data};
-
-        # String, error, integer
-        if ($type eq '+' || $type eq ':' || $type eq '-') {
-            $encoded_message .= "$type$data\r\n";
-        }
         # Bulk string
-        elsif ($type eq '$') {
-            if (defined $data) {
-                $encoded_message .= '$' . length($data) . "\r\n$data\r\n";
+        if ($message->{type} eq '$') {
+            if (defined $message->{data}) {
+                $encoded_message .= '$' . length($message->{data}) . "\r\n" . $message->{data} . "\r\n";
             }
             else {
                 $encoded_message .= "\$-1\r\n";
             }
         }
         # Array (multi bulk)
-        elsif ($type eq '*') {
-            if (defined $data) {
-                $encoded_message .= '*' . scalar(@$data) . "\r\n";
-                unshift @stack, @$data;
+        elsif ($message->{type} eq '*') {
+            if (defined $message->{data}) {
+                $encoded_message .= '*' . scalar(@{$message->{data}}) . "\r\n";
+                unshift @_, @{$message->{data}};
             }
             else {
                 $encoded_message .= "*-1\r\n";
             }
         }
+        # String, error, integer
+        elsif (exists $simple_types{$message->{type}}) {
+            $encoded_message .= $message->{type} . $message->{data} . "\r\n";
+        }
         else {
-            Carp::croak(qq/Unknown message type $type/);
+            Carp::croak(qq/Unknown message type $message->{type}/);
         }
     }
 
@@ -99,14 +99,13 @@ sub parse {
             $message->{_argument}  = substr $$buffer, 1, $pos - 1;
             substr $$buffer, 0, $pos + 2, ''; # Remove type + argument + \r\n
         }
-        my $type = $message->{type};
 
         # Simple Strings, Errors, Integers
-        if ($type eq ':' || $type eq '+' || $type eq '-') {
+        if (exists $simple_types{$message->{type}}) {
             $message->{data} = delete $message->{_argument};
         }
         # Bulk Strings
-        elsif ($type eq '$') {
+        elsif ($message->{type} eq '$') {
             if ($message->{_argument} eq '-1') {
                 $message->{data} = undef;
                 delete $message->{_argument};
@@ -121,7 +120,7 @@ sub parse {
             }
         }
         # Arrays
-        elsif ($type eq '*') {
+        elsif ($message->{type} eq '*') {
             if ($message->{_argument} eq '-1') {
                 $message->{data} = undef;
                 delete $message->{_argument};
