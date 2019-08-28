@@ -26,7 +26,7 @@ sub _apiv1_ok {
     my $redis_class = shift;
 
     subtest 'Protocol::Redis APIv1 ok' => sub {
-        plan tests => 41;
+        plan tests => 43;
 
         use_ok $redis_class;
 
@@ -203,6 +203,24 @@ sub _parse_multi_bulk_ok {
             {type => '$', data => 'test2'},
             {type => '$', data => 'test3'}
         ]
+    };
+
+    # Complex string
+    $redis->parse("\*4\r\n");
+    $redis->parse("\$5\r\ntest1\r\n\$-1\r\n:test2\r\n+test3\r\n\$5\r\n123");
+    $redis->parse("45\r\n");
+    is_deeply $redis->get_message, {
+        type => '*',
+        data => [
+            {type => '$', data => 'test1'},
+            {type => '$', data => undef},
+            {type => ':', data => 'test2'},
+            {type => '+', data => 'test3'}
+        ]
+    };
+    is_deeply $redis->get_message, {
+        type => '$',
+        data => '12345',
     };
 
     # pipelined multi-bulk
