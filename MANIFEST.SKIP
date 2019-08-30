@@ -7,3 +7,5 @@
 \.bak$
 \.swp$
 MYMETA
+^\.travis\.yml$
+.*\.tar\.gz$
