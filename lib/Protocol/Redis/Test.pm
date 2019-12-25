@@ -207,14 +207,14 @@ sub _parse_multi_bulk_ok {
 
     # Complex string
     $redis->parse("\*4\r\n");
-    $redis->parse("\$5\r\ntest1\r\n\$-1\r\n:test2\r\n+test3\r\n\$5\r\n123");
+    $redis->parse("\$5\r\ntest1\r\n\$-1\r\n:42\r\n+test3\r\n\$5\r\n123");
     $redis->parse("45\r\n");
     is_deeply $redis->get_message, {
         type => '*',
         data => [
             {type => '$', data => 'test1'},
             {type => '$', data => undef},
-            {type => ':', data => 'test2'},
+            {type => ':', data => 42},
             {type => '+', data => 'test3'}
         ]
     };
