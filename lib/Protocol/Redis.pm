@@ -14,7 +14,7 @@ sub new {
 
     my $self = {@_};
 
-    return unless $self->{api} == '1';
+    return undef unless $self->{api} == '1';
 
     bless $self, $class;
 
