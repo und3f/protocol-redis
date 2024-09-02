@@ -11,7 +11,7 @@ our @EXPORT = qw(protocol_redis_ok);
 use Test::More;
 require Carp;
 
-sub protocol_redis_ok($$) {
+sub protocol_redis_ok {
     my ($redis_class, $api_version) = @_;
 
     if ($api_version == 1) {
@@ -30,31 +30,32 @@ sub _apiv1_ok {
 
         use_ok $redis_class;
 
-        # Version 1 protocol
-        my $redis = new_ok $redis_class, [api => 1];
+        _test_version_1($redis_class);
 
-        can_ok $redis, 'parse', 'api', 'on_message', 'encode';
+        _test_unknown_version($redis_class);
+    }
+}
 
-        is $redis->api, 1, '$redis->api';
+sub _test_version_1 {
+    my $redis_class = shift;
 
-        # Parsing method tests
-        $redis->on_message(undef);
-        _parse_string_ok($redis);
-        _parse_bulk_ok($redis);
-        _parse_multi_bulk_ok($redis);
+    my $redis = new_ok $redis_class, [api => 1];
 
-        # on_message works
-        _on_message_ok($redis);
+    can_ok $redis, 'parse', 'api', 'on_message', 'encode';
 
-        # Encoding method tests
-        _encode_ok($redis);
+    is $redis->api, 1, '$redis->api';
 
-        # Unknown version should raise an exception
-        eval {
-          new($redis_class, api => 0);
-        };
-        ok($@, 'unknown version raises an exception');
-      }
+    # Parsing method tests
+    $redis->on_message(undef);
+    _parse_string_ok($redis);
+    _parse_bulk_ok($redis);
+    _parse_multi_bulk_ok($redis);
+
+    # on_message works
+    _on_message_ok($redis);
+
+    # Encoding method tests
+    _encode_ok($redis);
 }
 
 sub _parse_string_ok {
@@ -124,8 +125,7 @@ sub _parse_bulk_ok {
     $redis->parse("\$-1\r\n");
 
     my $message = $redis->get_message;
-    ok defined($message) && !defined($message->{data}),
-      'nil bulk message';
+    ok defined($message) && !defined($message->{data}), 'nil bulk message';
 
     # Two chunked bulk messages
     $redis->parse(join("\r\n", '$4', 'test', '+OK'));
@@ -156,8 +156,8 @@ sub _parse_multi_bulk_ok {
     $redis->parse("\$5\r\ntest2\r\n");
     $redis->parse("\$5\r\ntest3\r\n");
 
-    is_deeply $redis->get_message,
-      { type => '*',
+    is_deeply $redis->get_message, {
+        type => '*',
         data => [
             {type => '$', data => 'test1'},
             {type => '$', data => 'test2'},
@@ -184,8 +184,8 @@ sub _parse_multi_bulk_ok {
 
     # Multi bulk message with status items
     $redis->parse(join("\r\n", ('*2', '+OK', '$4', 'test'), ''));
-    is_deeply $redis->get_message,
-      { type => '*',
+    is_deeply $redis->get_message, {
+        type => '*',
         data => [{type => '+', data => 'OK'}, {type => '$', data => 'test'}]
       };
 
@@ -210,7 +210,7 @@ sub _parse_multi_bulk_ok {
             {type => '$', data => 'test2'},
             {type => '$', data => 'test3'}
         ]
-    };
+      };
 
     # Complex string
     $redis->parse("\*4\r\n");
@@ -224,11 +224,11 @@ sub _parse_multi_bulk_ok {
             {type => ':', data => 42},
             {type => '+', data => 'test3'}
         ]
-    };
+      };
     is_deeply $redis->get_message, {
         type => '$',
         data => '12345',
-    };
+      };
 
     # pipelined multi-bulk
     $redis->parse(
@@ -237,8 +237,8 @@ sub _parse_multi_bulk_ok {
             ('*1', '$3', 'ok3'), '')
     );
 
-    is_deeply $redis->get_message,
-      { type => '*',
+    is_deeply $redis->get_message, {
+        type => '*',
         data => [{type => '$', data => 'ok1'}, {type => '$', data => 'ok2'}]
       };
     is_deeply $redis->get_message,
@@ -299,8 +299,8 @@ sub _encode_ok {
       join("\r\n", ('*1', '$4', 'test'), ''),
       'encode multi-bulk';
 
-    is $redis->encode(
-        {   type => '*',
+    is $redis->encode({
+            type => '*',
             data => [
                 {type => '$', data => 'test1'}, {type => '$', data => 'test2'}
             ]
@@ -315,8 +315,8 @@ sub _encode_ok {
     is $redis->encode({type => '*', data => undef}), "\*-1\r\n",
       'encode nil multi-bulk';
 
-    is $redis->encode(
-        {   type => '*',
+    is $redis->encode({
+            type => '*',
             data => [
                 {type => '$', data => 'foo'},
                 {type => '$', data => undef},
@@ -326,6 +326,13 @@ sub _encode_ok {
       ),
       join("\r\n", ('*3', '$3', 'foo', '$-1', '$3', 'bar'), ''),
       'encode multi-bulk with nil element';
+}
+
+sub _test_unknown_version {
+    my $redis_class = shift;
+
+    eval { new($redis_class, api => 0); };
+    ok($@, 'unknown version raises an exception');
 }
 
 1;
