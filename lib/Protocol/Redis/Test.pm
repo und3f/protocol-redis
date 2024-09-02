@@ -331,7 +331,7 @@ sub _encode_ok {
 sub _test_unknown_version {
     my $redis_class = shift;
 
-    eval { new($redis_class, api => 0); };
+    eval { $redis_class->new(api => 0); };
     ok($@, 'unknown version raises an exception');
 }
 

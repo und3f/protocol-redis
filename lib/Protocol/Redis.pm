@@ -4,7 +4,7 @@ use strict;
 use warnings;
 use 5.008_001;
 
-our $VERSION = '1.0020';
+our $VERSION = '1.0021';
 
 require Carp;
 

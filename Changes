@@ -1,5 +1,8 @@
 This file documents the revision history for Perl extension Protocol::Redis
 
+1.0021  03.09.2024 00:00:00
+         - Test unknown version excaption implementation
+
 1.0020  03.09.2024 00:00:00
          - Protocol::Redis implementation should fail on instantiating with unknown version (Grinnz)
 
