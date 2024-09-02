@@ -9,7 +9,7 @@ WriteMakefile(
     NAME          => 'Protocol::Redis',
     VERSION_FROM  => 'lib/Protocol/Redis.pm',
     ABSTRACT_FROM => 'lib/Protocol/Redis.pm',
-    AUTHOR        => 'Sergey Zasenko <sergey@zasenko.name>',
+    AUTHOR        => 'Serhii Zasenko <sergii@zasenko.name>',
     LICENSE       => 'perl_5',
 
     META_MERGE => {

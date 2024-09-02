@@ -266,7 +266,7 @@ Get API version.
 
 =head1 AUTHOR
 
-Sergey Zasenko, C<undef@cpan.org>.
+Serhii Zasenko, C<undef@cpan.org>.
 
 =head1 CREDITS
 
