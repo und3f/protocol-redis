@@ -14,7 +14,7 @@ sub new {
 
     my $self = {@_};
 
-    return unless $self->{api} == '1';
+    Carp::croak(qq/Unknown Protocol::Redis API version $self->{api}/) unless $self->{api} == '1';
 
     bless $self, $class;
 
