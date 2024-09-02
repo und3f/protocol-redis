@@ -368,7 +368,7 @@ L<Protocol::Redis>
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (C) 2010-2024, Sergey Zasenko
+Copyright (C) 2010-2024, Serhii Zasenko
 
 This program is free software, you can redistribute it and/or modify it under
 the terms of the Artistic License version 2.0.
