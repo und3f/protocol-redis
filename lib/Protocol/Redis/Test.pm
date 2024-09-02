@@ -26,10 +26,11 @@ sub _apiv1_ok {
     my $redis_class = shift;
 
     subtest 'Protocol::Redis APIv1 ok' => sub {
-        plan tests => 43;
+        plan tests => 44;
 
         use_ok $redis_class;
 
+        # Version 1 protocol
         my $redis = new_ok $redis_class, [api => 1];
 
         can_ok $redis, 'parse', 'api', 'on_message', 'encode';
@@ -47,6 +48,12 @@ sub _apiv1_ok {
 
         # Encoding method tests
         _encode_ok($redis);
+
+        # Unknown version should raise an exception
+        eval {
+          new($redis_class, api => 0);
+        };
+        ok($@, 'unknown version raises an exception');
       }
 }
 
@@ -354,7 +361,7 @@ L<Protocol::Redis>
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (C) 2010-2011, Sergey Zasenko
+Copyright (C) 2010-2024, Sergey Zasenko
 
 This program is free software, you can redistribute it and/or modify it under
 the terms of the Artistic License version 2.0.

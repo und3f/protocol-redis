@@ -289,7 +289,7 @@ Yaroslav Korshak (yko)
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (C) 2011-2019, Sergey Zasenko.
+Copyright (C) 2011-2024, Sergey Zasenko.
 
 This program is free software, you can redistribute it and/or modify it under
 the same terms as Perl 5.10.
