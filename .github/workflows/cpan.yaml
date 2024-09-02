@@ -1,0 +1,18 @@
+name: CPAN
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+  workflow_dispatch:
+
+jobs:
+  build:
+    uses: PerlToolsTeam/github_workflows/.github/workflows/cpan-test.yml@main
+
+  coverage:
+    uses: PerlToolsTeam/github_workflows/.github/workflows/cpan-coverage.yml@main
+
+  perlcritic:
+    uses: PerlToolsTeam/github_workflows/.github/workflows/cpan-perlcritic.yml@main
