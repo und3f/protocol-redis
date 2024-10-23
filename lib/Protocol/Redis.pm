@@ -14,7 +14,8 @@ sub new {
 
     my $self = {@_};
 
-    Carp::croak(qq/Unknown Protocol::Redis API version $self->{api}/) unless $self->{api} == '1';
+    Carp::croak(qq/Unknown Protocol::Redis API version $self->{api}/)
+      unless $self->{api} == 1 or $self->{api} == 2 or $self->{api} == 3;
 
     bless $self, $class;
 
@@ -31,6 +32,8 @@ sub api {
 }
 
 my %simple_types = ('+' => 1, '-' => 1, ':' => 1);
+my %blob_types = ('$' => 1, '!' => 1, '=' => 1);
+my %aggregate_types = ('*' => 1, '%' => 1, '~' => 1, '|' => 1, '>' => 1);
 my $rn = "\r\n";
 
 sub encode {
@@ -100,14 +103,58 @@ sub parse {
             substr $$buffer, 0, $pos + 2, ''; # Remove type + argument + \r\n
         }
 
+        # Streamed String Parts - must be checked for first
+        if ($self->{api} == 3 and $message->{_streaming}) {
+            unless ($message->{type} eq ';') {
+                Carp::croak(qq/Unexpected input "$message->{type}"/);
+            }
+
+            if ($message->{_argument} == 0) {
+                $message = delete $message->{_streaming};
+            }
+            elsif (length($$buffer) >= $message->{_argument} + 2) {
+                my $streaming = delete $message->{_streaming};
+                $streaming->{data} .= substr $$buffer, 0, $message->{_argument}, '';
+                substr $$buffer, 0, 2, ''; # Remove \r\n
+                $message = $self->{_message} = {_streaming => $streaming};
+                next;
+            }
+            else {
+                return # Wait more data
+            }
+        }
         # Simple Strings, Errors, Integers
-        if (exists $simple_types{$message->{type}}) {
+        elsif (exists $simple_types{$message->{type}}) {
             $message->{data} = delete $message->{_argument};
         }
-        # Bulk Strings
-        elsif ($message->{type} eq '$') {
+        # Null
+        elsif ($self->{api} == 3 and $message->{type} eq '_') {
+            delete $message->{_argument};
+            $message->{data} = undef;
+        }
+        # Booleans
+        elsif ($self->{api} == 3 and $message->{type} eq '#') {
+            $message->{data} = !!(delete($message->{_argument}) eq 't');
+        }
+        # Doubles
+        elsif ($self->{api} == 3 and $message->{type} eq ',') {
+            $message->{data} = delete $message->{_argument};
+            $message->{data} = 'nan' if $message->{data} =~ m/^[-+]?nan/i;
+        }
+        # Big Numbers
+        elsif ($self->{api} == 3 and $message->{type} eq '(') {
+            require Math::BigInt;
+            $message->{data} = Math::BigInt->new(delete $message->{_argument});
+        }
+        # Bulk/Blob Strings, Blob Errors, Verbatim Strings
+        elsif ($message->{type} eq '$' or ($self->{api} == 3 and exists $blob_types{$message->{type}})) {
             if ($message->{_argument} eq '-1') {
                 $message->{data} = undef;
+            }
+            elsif ($self->{api} == 3 and $message->{type} eq '$' and $message->{_argument} eq '?') {
+                $message->{data} = '';
+                $message = $self->{_message} = {_streaming => $message};
+                next;
             }
             elsif (length($$buffer) >= $message->{_argument} + 2) {
                 $message->{data} = substr $$buffer, 0, $message->{_argument}, '';
@@ -117,17 +164,36 @@ sub parse {
                 return # Wait more data
             }
         }
-        # Arrays
-        elsif ($message->{type} eq '*') {
+        # Arrays, Maps, Sets, Attributes, Push
+        elsif ($message->{type} eq '*' or ($self->{api} == 3 and exists $aggregate_types{$message->{type}})) {
             if ($message->{_argument} eq '-1') {
                 $message->{data} = undef;
             } else {
-                $message->{data} = [];
-                if ($message->{_argument} > 0) {
+                if ($self->{api} == 3 and ($message->{type} eq '%' or $message->{type} eq '|')) {
+                    $message->{data} = {};
+                } else {
+                    $message->{data} = [];
+                }
+
+                if (($self->{api} == 3 and $message->{_argument} eq '?') or $message->{_argument} > 0) {
                     $message = $self->{_message} = {_parent => $message};
                     next;
                 }
             }
+            # Populate empty attributes for next message if we reach here
+            if ($self->{api} == 3 and $message->{type} eq '|') {
+                $message->{attributes} = {};
+                delete $message->{type};
+                delete $message->{data};
+                delete $message->{_argument};
+                next;
+            }
+        }
+        # Streamed Aggregate End
+        elsif ($self->{api} == 3 and $message->{type} eq '.'
+               and $message->{_parent} and $message->{_parent}{_argument} eq '?') {
+            $message = delete $message->{_parent};
+            delete $message->{_elements};
         }
         # Invalid input
         else {
@@ -139,15 +205,40 @@ sub parse {
 
         # Fill parents with data
         while (my $parent = delete $message->{_parent}) {
-            push @{$parent->{data}}, $message;
+            # Map key or value
+            if ($self->{api} == 3 and ($parent->{type} eq '%' or $parent->{type} eq '|')) {
+                if (exists $parent->{_key}) {
+                    $parent->{_elements}++;
+                    $parent->{data}{delete $parent->{_key}} = $message;
+                } else {
+                    $parent->{_key} = $message->{data};
+                }
+            }
+            # Array or set element
+            else {
+                $parent->{_elements}++;
+                push @{$parent->{data}}, $message;
+            }
 
-            if (@{$parent->{data}} < $parent->{_argument}) {
+            # Do we need more elements?
+            if (($self->{api} == 3 and $parent->{_argument} eq '?')
+                or ($parent->{_elements} || 0) < $parent->{_argument}) {
                 $message = $self->{_message} = {_parent => $parent};
                 next CHUNK;
             }
-            else {
-                $message = $parent;
-                delete $parent->{_argument};
+
+            # Aggregate is complete
+            $message = $parent;
+            delete $message->{_argument};
+            delete $message->{_elements};
+            delete $message->{_key};
+
+            # Attributes apply to the following message
+            if ($self->{api} == 3 and $message->{type} eq '|') {
+                $self->{_message} = $message;
+                $message->{attributes} = delete $message->{data};
+                delete $message->{type};
+                next CHUNK;
             }
         }
 
