@@ -14,25 +14,29 @@ require Carp;
 sub protocol_redis_ok {
     my ($redis_class, $api_version) = @_;
 
-    if ($api_version == 1) {
-        _apiv1_ok($redis_class);
-    }
-    else {
-        Carp::croak(qq/Unknown Protocol::Redis API version $api_version/);
-    }
+    subtest 'Protocol::Redis tests' => sub {
+        plan tests => 3;
+
+        use_ok $redis_class;
+
+        _test_unknown_version($redis_class);
+
+        if ($api_version == 1) {
+            _apiv1_ok($redis_class);
+        }
+        else {
+            Carp::croak(qq/Unknown Protocol::Redis API version $api_version/);
+        }
+    };
 }
 
 sub _apiv1_ok {
     my $redis_class = shift;
 
     subtest 'Protocol::Redis APIv1 ok' => sub {
-        plan tests => 44;
-
-        use_ok $redis_class;
+        plan tests => 42;
 
         _test_version_1($redis_class);
-
-        _test_unknown_version($redis_class);
     }
 }
 
