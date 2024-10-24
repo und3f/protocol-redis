@@ -43,28 +43,72 @@ sub encode {
     while (@_) {
         my $message = shift;
 
-        # Bulk string
-        if ($message->{type} eq '$') {
+        # Attributes
+        if (defined $message->{attributes}) {
+            my %append_message = %$message;
+            my $attributes = delete $append_message{attributes};
+            $encoded_message .= '|' . keys(%$attributes) . "\r\n";
+            unshift @_, (map { ({type => '$', data => $_}, $attributes->{$_}) }
+                sort keys %$attributes), \%append_message;
+        }
+
+        # Bulk string, Blob error, Verbatim string
+        elsif ($message->{type} eq '$' or ($self->{api} == 3 and exists $blob_types{$message->{type}})) {
             if (defined $message->{data}) {
-                $encoded_message .= '$' . length($message->{data}) . "\r\n" . $message->{data} . "\r\n";
+                $encoded_message .= $message->{type} . length($message->{data}) . "\r\n" . $message->{data} . "\r\n";
             }
             else {
-                $encoded_message .= "\$-1\r\n";
+                $encoded_message .= "$message->{type}-1\r\n";
             }
         }
-        # Array (multi bulk)
-        elsif ($message->{type} eq '*') {
+        # Array, Set, Push
+        elsif ($message->{type} eq '*'
+               or ($self->{api} == 3 and ($message->{type} eq '~' or $message->{type} eq '>'))) {
             if (defined $message->{data}) {
-                $encoded_message .= '*' . scalar(@{$message->{data}}) . "\r\n";
+                $encoded_message .= $message->{type} . scalar(@{$message->{data}}) . "\r\n";
                 unshift @_, @{$message->{data}};
             }
             else {
-                $encoded_message .= "*-1\r\n";
+                $encoded_message .= "$message->{type}-1\r\n";
             }
         }
-        # String, error, integer
-        elsif (exists $simple_types{$message->{type}}) {
+        # Map
+        elsif ($self->{api} == 3 and $message->{type} eq '%') {
+            if (ref $message->{data} eq 'ARRAY') {
+                $encoded_message .= $message->{type} . int(@{$message->{data}} / 2) . "\r\n";
+                unshift @_, @{$message->{data}};
+            } else {
+                $encoded_message .= $message->{type} . keys(%{$message->{data}}) . "\r\n";
+                unshift @_, map { ({type => '$', data => $_}, $message->{data}{$_}) }
+                    sort keys %{$message->{data}};
+            }
+        }
+        # String, error, integer, big number
+        elsif (exists $simple_types{$message->{type}}
+               or ($self->{api} == 3 and $message->{type} eq '(')) {
             $encoded_message .= $message->{type} . $message->{data} . "\r\n";
+        }
+        # Double
+        elsif ($self->{api} == 3 and $message->{type} eq ',') {
+            # inf
+            if ($message->{data} == $message->{data} * 2) {
+                $encoded_message .= ',' . ($message->{data} > 0 ? '' : '-') . "inf\r\n";
+            }
+            # nan
+            elsif ($message->{data} != $message->{data}) {
+                $encoded_message .= ",nan\r\n";
+            }
+            else {
+                $encoded_message .= $message->{type} . $message->{data} . "\r\n";
+            }
+        }
+        # Null
+        elsif ($self->{api} == 3 and $message->{type} eq '_') {
+            $encoded_message .= "_\r\n";
+        }
+        # Boolean
+        elsif ($self->{api} == 3 and $message->{type} eq '#') {
+            $encoded_message .= '#' . ($message->{data} ? 't' : 'f') . "\r\n";
         }
         else {
             Carp::croak(qq/Unknown message type $message->{type}/);

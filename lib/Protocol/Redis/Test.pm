@@ -47,7 +47,7 @@ sub _apiv3_ok {
     my $redis_class = shift;
 
     subtest 'Protocol::Redis APIv3 ok' => sub {
-        plan tests => 125;
+        plan tests => 149;
 
         _test_version_3($redis_class);
     }
@@ -569,6 +569,15 @@ sub _parse_attribute_ok {
           max => {type => ':', data => '8'},
         }},
       ]}, 'message with embedded attributes';
+
+    # Aggregate attributes
+    $redis->parse("|1\r\n+array\r\n*2\r\n+test1\r\n+test2\r\n+test\r\n");
+
+    is_deeply $redis->get_message,
+      {type => '+', data => 'test', attributes => {array => {type => '*', data => [
+        {type => '+', data => 'test1'},
+        {type => '+', data => 'test2'},
+      ]}}}, 'message with aggregate attribute values';
 }
 
 sub _parse_push_ok {
@@ -766,6 +775,83 @@ sub _encode_v1_ok {
 
 sub _encode_v3_ok {
     my $redis = shift;
+
+    # Encode simple RESP3 types
+    is $redis->encode({type => '_', data => undef}), "_\r\n",
+      'encode null';
+
+    is $redis->encode({type => '#', data => 1}), "#t\r\n",
+      'encode boolean true';
+    is $redis->encode({type => '#', data => 0}), "#f\r\n",
+      'encode boolean false';
+
+    is $redis->encode({type => ',', data => '1.3'}), ",1.3\r\n",
+      'encode double';
+    is $redis->encode({type => ',', data => '-1.2e-5'}), ",-1.2e-5\r\n",
+      'encode negative double with exponent';
+    is $redis->encode({type => ',', data => '10'}), ",10\r\n",
+      'encode integer as double';
+    is $redis->encode({type => ',', data => 9**9**9}), ",inf\r\n",
+      'encode inf';
+    is $redis->encode({type => ',', data => -9**9**9}), ",-inf\r\n",
+      'encode negative inf';
+    is $redis->encode({type => ',', data => -sin 9**9**9}), ",nan\r\n",
+      'encode nan';
+
+    is $redis->encode({type => '(',
+      data => '3492890328409238509324850943850943825024385'}),
+      "(3492890328409238509324850943850943825024385\r\n",
+      'encode big number';
+    require Math::BigInt;
+    is $redis->encode({type => '(',
+      data => Math::BigInt->new('-3492890328409238509324850943850943825024385')}),
+      "(-3492890328409238509324850943850943825024385\r\n",
+      'encode bigint as big number';
+    is $redis->encode({type => '(', data => '0'}), "(0\r\n",
+      'encode zero as big number';
+
+    # Encode blob RESP3 types
+    is $redis->encode({type => '!', data => 'SYNTAX'}),
+      "!6\r\nSYNTAX\r\n", 'encode blob error';
+    is $redis->encode({type => '!', data => "\0\r\n"}),
+      "!3\r\n\0\r\n\r\n", 'encode binary blob error';
+
+    is $redis->encode({type => '=', data => '"foo"'}),
+      "=5\r\n\"foo\"\r\n", 'encode verbatim string';
+    is $redis->encode({type => '=', data => "\0\r\n"}),
+      "=3\r\n\0\r\n\r\n", 'encode binary verbatim string';
+
+    # Encode aggregate RESP3 types
+    is $redis->encode({type => '%', data => {foo => {type => '+', data => 'bar'}}}),
+      join("\r\n", '%1', '$3', 'foo', '+bar', ''),
+      'encode map';
+    is $redis->encode({type => '~', data => [{type => ':', data => 5},
+      {type => '+', data => 'test'}]}),
+      join("\r\n", '~2', ':5', '+test', ''),
+      'encode set';
+    is $redis->encode({type => '>', data => [{type => '+', data => 'test'},
+      {type => ',', data => '4.2'}]}),
+      join("\r\n", '>2', '+test', ',4.2', ''),
+      'encode push';
+
+    # Encode attributes
+    is $redis->encode({type => '+', data => 'test',
+      attributes => {foo => {type => '+', data => 'bar'}}}),
+      join("\r\n", '|1', '$3', 'foo', '+bar', '+test', ''),
+      'encode simple string with attributes';
+    is $redis->encode({type => '*', data => [{type => '_', data => undef}],
+      attributes => {test => {type => '#', data => 1}}}),
+      join("\r\n", '|1', '$4', 'test', '#t', '*1', '_', ''),
+      'encode array with attributes';
+    is $redis->encode({type => '~', data => [{type => ',', data => '-5.5',
+      attributes => {precision => {type => ':', data => 1}}}]}),
+      join("\r\n", '~1', '|1', '$9', 'precision', ':1', ',-5.5', ''),
+      'encode set with embedded attributes';
+    is $redis->encode({type => '+', data => 'test',
+      attributes => {array => {type => '*',
+      data => [{type => ':', data => 1}, {type => ':', data => 2}]}}}),
+      join("\r\n", '|1', '$5', 'array', '*2', ':1', ':2', '+test', ''),
+      'encode array attributes';
 }
 
 sub _test_unknown_version {
