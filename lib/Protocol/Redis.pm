@@ -329,6 +329,27 @@ Protocol::Redis - Redis protocol parser/encoder with asynchronous capabilities.
          {type => '+', data => 'OK'}
     ]});
 
+    # RESP3 supported with api 3 specified
+    my $redis = Protocol::Redis->new(api => 3);
+
+    print $redis->encode({type => '%', data => {
+        null   => {type => '_', data => undef},
+        booleans => {type => '~', data => [
+            {type => '#', data => 1},
+            {type => '#', data => 0},
+        ]},
+    }, attributes => {
+        coordinates => {type => '*', data => [
+            {type => ',', data => '36.001516'},
+            {type => ',', data => '-78.943319'},
+        ]},
+    });
+
+    $redis->parse("~3\r\n+x\r\n+y\r\n+z");
+    # sets represented in the protocol the same as arrays
+    my %set = map {($_->{data} => 1)} @{$redis->get_message};
+    print join ',', keys %set; # x,y,z in unspecified order
+
 =head1 DESCRIPTION
 
 Redis protocol parser/encoder with asynchronous capabilities and L<pipelining|http://redis.io/topics/pipelining> support.
@@ -339,6 +360,21 @@ Protocol::Redis APIv1 uses
 "L<Unified Request Protocol|http://redis.io/topics/protocol>" for message
 encoding/parsing and supports methods described further. Client libraries
 should specify API version during Protocol::Redis construction.
+
+API version 1 corresponds to the protocol now known as
+L<RESP2|https://github.com/redis/redis-specifications/blob/master/protocol/RESP2.md>
+and can also thusly be specified as API version 2.
+
+=head1 APIv3
+
+API version 3 supports the same methods as API version 1, corresponding to the
+L<RESP3|https://github.com/redis/redis-specifications/blob/master/protocol/RESP3.md>
+protocol. RESP3 contains support for several additional data types (null,
+boolean, double, big number, blob error, verbatim string, map, and set), data
+attributes, streamed strings and aggregate data, and explicitly specified push
+data so that asynchronous and synchronous responses can share a connection. A
+client must request RESP3 support from the server with the HELLO command to use
+these features.
 
 =head2 C<new>
 
