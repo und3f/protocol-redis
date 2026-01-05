@@ -363,7 +363,8 @@ should specify API version during Protocol::Redis construction.
 
 API version 1 corresponds to the protocol now known as
 L<RESP2|https://github.com/redis/redis-specifications/blob/master/protocol/RESP2.md>
-and can also thusly be specified as API version 2.
+and can also thusly be specified as API version 2. It supports the RESP2 data
+types C<+-:$*>.
 
 =head1 APIv3
 
@@ -375,6 +376,49 @@ attributes, streamed strings and aggregate data, and explicitly specified push
 data so that asynchronous and synchronous responses can share a connection. A
 client must request RESP3 support from the server with the HELLO command to use
 these features.
+
+APIv3 supports the RESP2 data types C<+-:$*> as well as the RESP3-specific data
+types C<< _,#!=(%~|> >>, with the following implementation notes:
+
+=over
+
+=item * Map
+
+The Map type, specified with the initial byte C<%>, is represented in Perl as a
+hash. The keys of a Map are allowed to be any data type, but for simplicity
+they are coerced to strings as required by Perl hashes, which the specification
+allows. When encoding a Map, a hash reference is normally passed, but an array
+reference of alternating keys and values may also be passed to allow specifying
+non-string keys. If passed as an array, the values will be encoded in the order
+specified, but the Map type is defined as unordered.
+
+=item * Attribute
+
+The Attribute type, specified with the initial byte C<|>, is much like the Map
+type, but instead of acting as a value in the message, it is applied as the
+C<attributes> key of the following value. Like Map, its keys are coerced to
+strings as it is represented as a Perl hash.
+
+=item * Set
+
+The Set type, specified with the initial byte C<~>, is represented as an array,
+since a Set can contain values of any data type, which native Perl hashes
+cannot represent as keys, and the specification does not require enforcing
+element uniqueness. If desired, the higher level client and server should
+handle deduplication of Set elements, and should also be aware that the type
+is defined as unordered and the values are likely to be tested for existence
+rather than position.
+
+=item * Push
+
+The Push type, specified with the initial byte C<< > >>, is treated no
+differently from an Array, but a client supporting RESP3 must be prepared to
+handle a Push value at any time rather than in response to a command. An
+asynchronous client would generally execute a predefined callback when a Push
+value is received; a synchronous client must also take this into consideration
+for how and when it reads messages.
+
+=back
 
 =head2 C<new>
 
