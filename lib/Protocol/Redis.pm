@@ -502,6 +502,12 @@ types C<< _,#!=(%~|> >>, with the following implementation notes:
 
 =over
 
+=item * Big Number
+
+The Big Number type, specified with the initial byte C<(>, is parsed to a
+L<Math::BigInt> object, which can be used in numeric or string operations
+without losing precision.
+
 =item * Map
 
 The Map type, specified with the initial byte C<%>, is represented in Perl as a
