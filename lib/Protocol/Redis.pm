@@ -192,7 +192,12 @@ sub _encode_resp3 {
         # Bulk string, Blob error, Verbatim string
         elsif (exists $blob_types{$message->{type}}) {
             if (defined $message->{data}) {
-                $encoded_message .= $message->{type} . length($message->{data}) . "\r\n" . $message->{data} . "\r\n";
+                my $text = $message->{data};
+                if ($message->{type} eq '=') {
+                    my $format = defined $message->{format} ? $message->{format} : 'txt';
+                    $text = "$format:$text";
+                }
+                $encoded_message .= $message->{type} . length($text) . "\r\n" . $text . "\r\n";
             }
             else {
                 $encoded_message .= "$message->{type}-1\r\n";
@@ -328,6 +333,9 @@ sub _parse_resp3 {
             }
             elsif (length($$buffer) >= $message->{_argument} + 2) {
                 $message->{data} = substr $$buffer, 0, $message->{_argument}, '';
+                if ($message->{type} eq '=' and $message->{data} =~ s/^(.{3})://s) {
+                    $message->{format} = $1;
+                }
                 substr $$buffer, 0, 2, ''; # Remove \r\n
             }
             else {
@@ -501,6 +509,15 @@ APIv3 supports the RESP2 data types C<+-:$*> as well as the RESP3-specific data
 types C<< _,#!=(%~|> >>, with the following implementation notes:
 
 =over
+
+=item * Verbatim String
+
+The Verbatim String type, specified with the initial byte C<=>, is treated the
+same as the Blob String type C<$> except that the first three bytes specify
+the C<format>, followed by a colon C<:>, and the remaining bytes are the string
+data. When parsing, the C<format> will be returned as a separate key and not
+included in the string C<data>. When encoding, a C<format> can be specified and
+otherwise defaults to C<txt>, and will be prepended to the string data.
 
 =item * Big Number
 

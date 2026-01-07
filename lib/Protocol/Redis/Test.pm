@@ -47,7 +47,7 @@ sub _apiv3_ok {
     my $redis_class = shift;
 
     subtest 'Protocol::Redis APIv3 ok' => sub {
-        plan tests => 149;
+        plan tests => 150;
 
         _test_version_3($redis_class);
     }
@@ -96,7 +96,7 @@ sub _test_version_3 {
     _parse_big_number_ok($redis);
     _parse_blob_ok($redis, '$'); # blob string
     _parse_blob_ok($redis, '!'); # blob error
-    _parse_blob_ok($redis, '='); # verbatim string
+    _parse_verbatim_ok($redis); # verbatim string
     _parse_array_ok($redis, '*'); # array
     _parse_array_ok($redis, '~'); # set
     _parse_array_ok($redis, '>'); # push
@@ -203,6 +203,56 @@ sub _parse_blob_ok {
     is_deeply $redis->get_message,
       {type => $type, data => ''},
       "$type empty blob message";
+}
+
+sub _parse_verbatim_ok {
+    my $redis = shift;
+
+    # Verbatim message
+    $redis->parse("=8\r\ntxt:test\r\n");
+    is_deeply $redis->get_message,
+      {type => '=', data => 'test', format => 'txt'},
+      "simple verbatim string message";
+
+    $redis->parse("=9\r\ntxt:tes");
+    $redis->parse("t2\r\n");
+    is_deeply $redis->get_message,
+      {type => '=', data => 'test2', format => 'txt'},
+      "chunked verbatim string message";
+
+    # Two chunked verbatim messages
+    $redis->parse(join("\r\n", '=8', 'txt:test', '=6', 'mkd:OK'));
+    $redis->parse("\r\n");
+    is_deeply $redis->get_message,
+      {type => '=', data => 'test', format => 'txt'}, "two chunked verbatim string messages";
+    is_deeply $redis->get_message, {type => '=', data => 'OK', format => 'mkd'};
+
+    # Pipelined verbatim message
+    $redis->parse(join("\r\n", ('=7', 'txt:ok1'), ('=7', 'txt:ok2'), ''));
+    is_deeply [$redis->get_message, $redis->get_message],
+      [{type => '=', data => 'ok1', format => 'txt'}, {type => '=', data => 'ok2', format => 'txt'}],
+      "pipelined verbatim string message";
+
+    # Binary test
+    $redis->parse(join("\r\n", '=8', 'txt:' . pack('C4', 0, 1, 2, 3), ''));
+
+    is_deeply [unpack('C4', $redis->get_message->{data})],
+      [0, 1, 2, 3],
+      'binary data';
+
+    # Blob message with newlines
+    $redis->parse("=12\r\ntxt:one\r\ntwo\r\n");
+
+    is_deeply $redis->get_message,
+      {type => '=', data => "one\r\ntwo", format => 'txt'},
+      "verbatim string message with newlines";
+
+    # Empty blob message
+    $redis->parse("=4\r\ntxt:\r\n");
+
+    is_deeply $redis->get_message,
+      {type => '=', data => '', format => 'txt'},
+      "empty verbatim string message";
 }
 
 sub _parse_array_ok {
@@ -817,9 +867,11 @@ sub _encode_v3_ok {
       "!3\r\n\0\r\n\r\n", 'encode binary blob error';
 
     is $redis->encode({type => '=', data => '"foo"'}),
-      "=5\r\n\"foo\"\r\n", 'encode verbatim string';
+      "=9\r\ntxt:\"foo\"\r\n", 'encode verbatim string';
+    is $redis->encode({type => '=', data => '"bar"', format => 'mkd'}),
+      "=9\r\nmkd:\"bar\"\r\n", 'encode verbatim string with custom format';
     is $redis->encode({type => '=', data => "\0\r\n"}),
-      "=3\r\n\0\r\n\r\n", 'encode binary verbatim string';
+      "=7\r\ntxt:\0\r\n\r\n", 'encode binary verbatim string';
 
     # Encode aggregate RESP3 types
     is $redis->encode({type => '%', data => {foo => {type => '+', data => 'bar'}}}),
