@@ -191,27 +191,17 @@ sub _encode_resp3 {
 
         # Bulk string, Blob error, Verbatim string
         elsif (exists $blob_types{$message->{type}}) {
-            if (defined $message->{data}) {
-                my $text = $message->{data};
-                if ($message->{type} eq '=') {
-                    my $format = defined $message->{format} ? $message->{format} : 'txt';
-                    $text = "$format:$text";
-                }
-                $encoded_message .= $message->{type} . length($text) . "\r\n" . $text . "\r\n";
+            my $text = $message->{data};
+            if ($message->{type} eq '=') {
+                my $format = defined $message->{format} ? $message->{format} : 'txt';
+                $text = "$format:$text";
             }
-            else {
-                $encoded_message .= "$message->{type}-1\r\n";
-            }
+            $encoded_message .= $message->{type} . length($text) . "\r\n" . $text . "\r\n";
         }
         # Array, Set, Push
         elsif ($message->{type} eq '*' or $message->{type} eq '~' or $message->{type} eq '>') {
-            if (defined $message->{data}) {
-                $encoded_message .= $message->{type} . scalar(@{$message->{data}}) . "\r\n";
-                unshift @_, @{$message->{data}};
-            }
-            else {
-                $encoded_message .= "$message->{type}-1\r\n";
-            }
+            $encoded_message .= $message->{type} . scalar(@{$message->{data}}) . "\r\n";
+            unshift @_, @{$message->{data}};
         }
         # Map
         elsif ($message->{type} eq '%') {
@@ -323,10 +313,7 @@ sub _parse_resp3 {
         }
         # Bulk/Blob Strings, Blob Errors, Verbatim Strings
         elsif (exists $blob_types{$message->{type}}) {
-            if ($message->{_argument} eq '-1') {
-                $message->{data} = undef;
-            }
-            elsif ($message->{type} eq '$' and $message->{_argument} eq '?') {
+            if ($message->{type} eq '$' and $message->{_argument} eq '?') {
                 $message->{data} = '';
                 $message = $self->{_message} = {_streaming => $message};
                 next;
@@ -344,19 +331,15 @@ sub _parse_resp3 {
         }
         # Arrays, Maps, Sets, Attributes, Push
         elsif (exists $aggregate_types{$message->{type}}) {
-            if ($message->{_argument} eq '-1') {
-                $message->{data} = undef;
+            if ($message->{type} eq '%' or $message->{type} eq '|') {
+                $message->{data} = {};
             } else {
-                if ($message->{type} eq '%' or $message->{type} eq '|') {
-                    $message->{data} = {};
-                } else {
-                    $message->{data} = [];
-                }
+                $message->{data} = [];
+            }
 
-                if ($message->{_argument} eq '?' or $message->{_argument} > 0) {
-                    $message = $self->{_message} = {_parent => $message};
-                    next;
-                }
+            if ($message->{_argument} eq '?' or $message->{_argument} > 0) {
+                $message = $self->{_message} = {_parent => $message};
+                next;
             }
             # Populate empty attributes for next message if we reach here
             if ($message->{type} eq '|') {
