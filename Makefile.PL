@@ -29,6 +29,7 @@ WriteMakefile(
     MIN_PERL_VERSION => '5.008001',
     PREREQ_PM => {
         'Carp' => 0,
+        'Math::BigInt' => 0,
         'Test::More' => '0.94',
     },
     test => {TESTS =>  't/*.t'},

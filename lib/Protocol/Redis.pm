@@ -14,7 +14,8 @@ sub new {
 
     my $self = {@_};
 
-    Carp::croak(qq/Unknown Protocol::Redis API version $self->{api}/) unless $self->{api} == '1';
+    Carp::croak(qq/Unknown Protocol::Redis API version $self->{api}/)
+      unless $self->{api} == 1 or $self->{api} == 2 or $self->{api} == 3;
 
     bless $self, $class;
 
@@ -30,10 +31,32 @@ sub api {
     $self->{api};
 }
 
-my %simple_types = ('+' => 1, '-' => 1, ':' => 1);
-my $rn = "\r\n";
-
 sub encode {
+    my ($self) = @_;
+    return $self->{api} == 3 ? _encode_resp3(@_) : _encode_resp2(@_);
+}
+
+sub get_message {
+    shift @{$_[0]->{_messages}};
+}
+
+sub on_message {
+    my ($self, $cb) = @_;
+    $self->{_on_message_cb} = $cb || \&_gather_messages;
+}
+
+sub parse {
+    my ($self) = @_;
+    return $self->{api} == 3 ? _parse_resp3(@_) : _parse_resp2(@_);
+}
+
+sub _gather_messages {
+    push @{$_[0]->{_messages}}, $_[1];
+}
+
+my %simple_types = ('+' => 1, '-' => 1, ':' => 1);
+
+sub _encode_resp2 {
     my $self = shift;
 
     my $encoded_message = '';
@@ -71,16 +94,7 @@ sub encode {
     return $encoded_message;
 }
 
-sub get_message {
-    shift @{$_[0]->{_messages}};
-}
-
-sub on_message {
-    my ($self, $cb) = @_;
-    $self->{_on_message_cb} = $cb || \&_gather_messages;
-}
-
-sub parse {
+sub _parse_resp2 {
     my $self        = shift;
     $self->{_buffer}.= shift;
 
@@ -156,8 +170,240 @@ sub parse {
     }
 }
 
-sub _gather_messages {
-    push @{$_[0]->{_messages}}, $_[1];
+my %blob_types = ('$' => 1, '!' => 1, '=' => 1);
+my %aggregate_types = ('*' => 1, '%' => 1, '~' => 1, '|' => 1, '>' => 1);
+
+sub _encode_resp3 {
+    my $self = shift;
+
+    my $encoded_message = '';
+    while (@_) {
+        my $message = shift;
+
+        # Attributes
+        if (defined $message->{attributes}) {
+            my %append_message = %$message;
+            my $attributes = delete $append_message{attributes};
+            $encoded_message .= '|' . keys(%$attributes) . "\r\n";
+            unshift @_, (map { ({type => '$', data => $_}, $attributes->{$_}) }
+                sort keys %$attributes), \%append_message;
+        }
+
+        # Bulk string, Blob error, Verbatim string
+        elsif (exists $blob_types{$message->{type}}) {
+            my $text = $message->{data};
+            if ($message->{type} eq '=') {
+                my $format = defined $message->{format} ? $message->{format} : 'txt';
+                $text = "$format:$text";
+            }
+            $encoded_message .= $message->{type} . length($text) . "\r\n" . $text . "\r\n";
+        }
+        # Array, Set, Push
+        elsif ($message->{type} eq '*' or $message->{type} eq '~' or $message->{type} eq '>') {
+            $encoded_message .= $message->{type} . scalar(@{$message->{data}}) . "\r\n";
+            unshift @_, @{$message->{data}};
+        }
+        # Map
+        elsif ($message->{type} eq '%') {
+            if (ref $message->{data} eq 'ARRAY') {
+                $encoded_message .= $message->{type} . int(@{$message->{data}} / 2) . "\r\n";
+                unshift @_, @{$message->{data}};
+            } else {
+                $encoded_message .= $message->{type} . keys(%{$message->{data}}) . "\r\n";
+                unshift @_, map { ({type => '$', data => $_}, $message->{data}{$_}) }
+                    sort keys %{$message->{data}};
+            }
+        }
+        # String, error, integer, big number
+        elsif (exists $simple_types{$message->{type}} or $message->{type} eq '(') {
+            $encoded_message .= $message->{type} . $message->{data} . "\r\n";
+        }
+        # Double
+        elsif ($message->{type} eq ',') {
+            # inf
+            if ($message->{data} == $message->{data} * 2) {
+                $encoded_message .= ',' . ($message->{data} > 0 ? '' : '-') . "inf\r\n";
+            }
+            # nan
+            elsif ($message->{data} != $message->{data}) {
+                $encoded_message .= ",nan\r\n";
+            }
+            else {
+                $encoded_message .= $message->{type} . $message->{data} . "\r\n";
+            }
+        }
+        # Null
+        elsif ($message->{type} eq '_') {
+            $encoded_message .= "_\r\n";
+        }
+        # Boolean
+        elsif ($message->{type} eq '#') {
+            $encoded_message .= '#' . ($message->{data} ? 't' : 'f') . "\r\n";
+        }
+        else {
+            Carp::croak(qq/Unknown message type $message->{type}/);
+        }
+    }
+
+    return $encoded_message;
+}
+
+sub _parse_resp3 {
+    my $self        = shift;
+    $self->{_buffer}.= shift;
+
+    my $message = $self->{_message} ||= {};
+    my $buffer  = \$self->{_buffer};
+
+    CHUNK:
+    while ((my $pos = index($$buffer, "\r\n")) != -1) {
+        # Check our state: are we parsing new message or completing existing
+        if (!$message->{type}) {
+            if ($pos < 1) {
+                Carp::croak(qq/Unexpected input "$$buffer"/);
+            }
+
+            $message->{type} = substr $$buffer, 0, 1;
+            $message->{_argument}  = substr $$buffer, 1, $pos - 1;
+            substr $$buffer, 0, $pos + 2, ''; # Remove type + argument + \r\n
+        }
+
+        # Streamed String Parts - must be checked for first
+        if ($message->{_streaming}) {
+            unless ($message->{type} eq ';') {
+                Carp::croak(qq/Unexpected input "$message->{type}"/);
+            }
+
+            if ($message->{_argument} == 0) {
+                $message = delete $message->{_streaming};
+            }
+            elsif (length($$buffer) >= $message->{_argument} + 2) {
+                my $streaming = delete $message->{_streaming};
+                $streaming->{data} .= substr $$buffer, 0, $message->{_argument}, '';
+                substr $$buffer, 0, 2, ''; # Remove \r\n
+                $message = $self->{_message} = {_streaming => $streaming};
+                next;
+            }
+            else {
+                return # Wait more data
+            }
+        }
+        # Simple Strings, Errors, Integers
+        elsif (exists $simple_types{$message->{type}}) {
+            $message->{data} = delete $message->{_argument};
+        }
+        # Null
+        elsif ($message->{type} eq '_') {
+            delete $message->{_argument};
+            $message->{data} = undef;
+        }
+        # Booleans
+        elsif ($message->{type} eq '#') {
+            $message->{data} = !!(delete($message->{_argument}) eq 't');
+        }
+        # Doubles
+        elsif ($message->{type} eq ',') {
+            $message->{data} = delete $message->{_argument};
+            $message->{data} = 'nan' if $message->{data} =~ m/^[-+]?nan/i;
+        }
+        # Big Numbers
+        elsif ($message->{type} eq '(') {
+            require Math::BigInt;
+            $message->{data} = Math::BigInt->new(delete $message->{_argument});
+        }
+        # Bulk/Blob Strings, Blob Errors, Verbatim Strings
+        elsif (exists $blob_types{$message->{type}}) {
+            if ($message->{type} eq '$' and $message->{_argument} eq '?') {
+                $message->{data} = '';
+                $message = $self->{_message} = {_streaming => $message};
+                next;
+            }
+            elsif (length($$buffer) >= $message->{_argument} + 2) {
+                $message->{data} = substr $$buffer, 0, $message->{_argument}, '';
+                if ($message->{type} eq '=' and $message->{data} =~ s/^(.{3})://s) {
+                    $message->{format} = $1;
+                }
+                substr $$buffer, 0, 2, ''; # Remove \r\n
+            }
+            else {
+                return # Wait more data
+            }
+        }
+        # Arrays, Maps, Sets, Attributes, Push
+        elsif (exists $aggregate_types{$message->{type}}) {
+            if ($message->{type} eq '%' or $message->{type} eq '|') {
+                $message->{data} = {};
+            } else {
+                $message->{data} = [];
+            }
+
+            if ($message->{_argument} eq '?' or $message->{_argument} > 0) {
+                $message = $self->{_message} = {_parent => $message};
+                next;
+            }
+            # Populate empty attributes for next message if we reach here
+            if ($message->{type} eq '|') {
+                $message->{attributes} = {};
+                delete $message->{type};
+                delete $message->{data};
+                delete $message->{_argument};
+                next;
+            }
+        }
+        # Streamed Aggregate End
+        elsif ($message->{type} eq '.' and $message->{_parent} and $message->{_parent}{_argument} eq '?') {
+            $message = delete $message->{_parent};
+            delete $message->{_elements};
+        }
+        # Invalid input
+        else {
+            Carp::croak(qq/Unexpected input "$self->{_message}{type}"/);
+        }
+
+        delete $message->{_argument};
+        delete $self->{_message};
+
+        # Fill parents with data
+        while (my $parent = delete $message->{_parent}) {
+            # Map key or value
+            if ($parent->{type} eq '%' or $parent->{type} eq '|') {
+                if (exists $parent->{_key}) {
+                    $parent->{_elements}++;
+                    $parent->{data}{delete $parent->{_key}} = $message;
+                } else {
+                    $parent->{_key} = $message->{data};
+                }
+            }
+            # Array or set element
+            else {
+                $parent->{_elements}++;
+                push @{$parent->{data}}, $message;
+            }
+
+            # Do we need more elements?
+            if ($parent->{_argument} eq '?' or ($parent->{_elements} || 0) < $parent->{_argument}) {
+                $message = $self->{_message} = {_parent => $parent};
+                next CHUNK;
+            }
+
+            # Aggregate is complete
+            $message = $parent;
+            delete $message->{_argument};
+            delete $message->{_elements};
+            delete $message->{_key};
+
+            # Attributes apply to the following message
+            if ($message->{type} eq '|') {
+                $self->{_message} = $message;
+                $message->{attributes} = delete $message->{data};
+                delete $message->{type};
+                next CHUNK;
+            }
+        }
+
+        $self->{_on_message_cb}->($self, $message);
+        $message = $self->{_message} = {};
+    }
 }
 
 1;
@@ -194,6 +440,27 @@ Protocol::Redis - Redis protocol parser/encoder with asynchronous capabilities.
          {type => '+', data => 'OK'}
     ]});
 
+    # RESP3 supported with api 3 specified
+    my $redis = Protocol::Redis->new(api => 3);
+
+    print $redis->encode({type => '%', data => {
+        null   => {type => '_', data => undef},
+        booleans => {type => '~', data => [
+            {type => '#', data => 1},
+            {type => '#', data => 0},
+        ]},
+    }, attributes => {
+        coordinates => {type => '*', data => [
+            {type => ',', data => '36.001516'},
+            {type => ',', data => '-78.943319'},
+        ]},
+    });
+
+    $redis->parse("~3\r\n+x\r\n+y\r\n+z");
+    # sets represented in the protocol the same as arrays
+    my %set = map {($_->{data} => 1)} @{$redis->get_message};
+    print join ',', keys %set; # x,y,z in unspecified order
+
 =head1 DESCRIPTION
 
 Redis protocol parser/encoder with asynchronous capabilities and L<pipelining|http://redis.io/topics/pipelining> support.
@@ -204,6 +471,80 @@ Protocol::Redis APIv1 uses
 "L<Unified Request Protocol|http://redis.io/topics/protocol>" for message
 encoding/parsing and supports methods described further. Client libraries
 should specify API version during Protocol::Redis construction.
+
+API version 1 corresponds to the protocol now known as
+L<RESP2|https://github.com/redis/redis-specifications/blob/master/protocol/RESP2.md>
+and can also thusly be specified as API version 2. It supports the RESP2 data
+types C<+-:$*>.
+
+=head1 APIv3
+
+API version 3 supports the same methods as API version 1, corresponding to the
+L<RESP3|https://github.com/redis/redis-specifications/blob/master/protocol/RESP3.md>
+protocol. RESP3 contains support for several additional data types (null,
+boolean, double, big number, blob error, verbatim string, map, and set), data
+attributes, streamed strings and aggregate data, and explicitly specified push
+data so that asynchronous and synchronous responses can share a connection. A
+client must request RESP3 support from the server with the HELLO command to use
+these features.
+
+APIv3 supports the RESP2 data types C<+-:$*> as well as the RESP3-specific data
+types C<< _,#!=(%~|> >>, with the following implementation notes:
+
+=over
+
+=item * Verbatim String
+
+The Verbatim String type, specified with the initial byte C<=>, is treated the
+same as the Blob String type C<$> except that the first three bytes specify
+the C<format>, followed by a colon C<:>, and the remaining bytes are the string
+data. When parsing, the C<format> will be returned as a separate key and not
+included in the string C<data>. When encoding, a C<format> can be specified and
+otherwise defaults to C<txt>, and will be prepended to the string data.
+
+=item * Big Number
+
+The Big Number type, specified with the initial byte C<(>, is parsed to a
+L<Math::BigInt> object, which can be used in numeric or string operations
+without losing precision.
+
+=item * Map
+
+The Map type, specified with the initial byte C<%>, is represented in Perl as a
+hash. The keys of a Map are allowed to be any data type, but for simplicity
+they are coerced to strings as required by Perl hashes, which the specification
+allows. When encoding a Map, a hash reference is normally passed, but an array
+reference of alternating keys and values may also be passed to allow specifying
+non-string keys. If passed as an array, the values will be encoded in the order
+specified, but the Map type is defined as unordered.
+
+=item * Attribute
+
+The Attribute type, specified with the initial byte C<|>, is much like the Map
+type, but instead of acting as a value in the message, it is applied as the
+C<attributes> key of the following value. Like Map, its keys are coerced to
+strings as it is represented as a Perl hash.
+
+=item * Set
+
+The Set type, specified with the initial byte C<~>, is represented as an array,
+since a Set can contain values of any data type, which native Perl hashes
+cannot represent as keys, and the specification does not require enforcing
+element uniqueness. If desired, the higher level client and server should
+handle deduplication of Set elements, and should also be aware that the type
+is defined as unordered and the values are likely to be tested for existence
+rather than position.
+
+=item * Push
+
+The Push type, specified with the initial byte C<< > >>, is treated no
+differently from an Array, but a client supporting RESP3 must be prepared to
+handle a Push value at any time rather than in response to a command. An
+asynchronous client would generally execute a predefined callback when a Push
+value is received; a synchronous client must also take this into consideration
+for how and when it reads messages.
+
+=back
 
 =head2 C<new>
 
