@@ -10,6 +10,8 @@ on:
 jobs:
   build:
     uses: PerlToolsTeam/github_workflows/.github/workflows/cpan-test.yml@main
+    with: 
+      os: '["macos-latest", "ubuntu-latest"]'
 
   coverage:
     uses: PerlToolsTeam/github_workflows/.github/workflows/cpan-coverage.yml@main
