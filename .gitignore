@@ -10,3 +10,4 @@ MANIFEST*
 pm_to_blib
 inc/
 MYMETA.*
+/Protocol-Redis*.tar.gz

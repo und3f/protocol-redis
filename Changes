@@ -1,5 +1,8 @@
 This file documents the revision history for Perl extension Protocol::Redis
 
+2.0000  18.01.2026 00:00:00
+         - Add support for RESP2 and RESP3 versions (Grinnz).
+
 1.0021  03.09.2024 00:00:00
          - Test unknown version excaption implementation
 
