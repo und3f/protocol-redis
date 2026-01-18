@@ -445,9 +445,20 @@ Protocol::Redis - Redis protocol parser/encoder with asynchronous capabilities.
 
     print $redis->encode({type => '%', data => {
         null   => {type => '_', data => undef},
+        bignum => {type => '(', data => '3492890328409238509324850943850943825024385'},
+        string => {type => '$', data => 'this is a string'},
+        # format prepended to verbatim strings (defaults to txt)
+        verbatim => {type => '=', data => '*verbatim* string', format => 'mkd'},
+        # set is unordered but specified as array
         booleans => {type => '~', data => [
             {type => '#', data => 1},
             {type => '#', data => 0},
+        ]},
+        # map is hashlike but can be specified as an
+        # (even-sized) array to encode non-string keys
+        special_map => {type => '%', data => [
+            {type => ':', data => 42} => {type => '$', data => 'The answer'},
+            {type => '_'} => {type => '$', data => 'No data'},
         ]},
     }, attributes => {
         coordinates => {type => '*', data => [
@@ -456,10 +467,35 @@ Protocol::Redis - Redis protocol parser/encoder with asynchronous capabilities.
         ]},
     });
 
-    $redis->parse("~3\r\n+x\r\n+y\r\n+z");
+    # "|1\r\n\$11\r\ncoordinates\r\n*2\r\n,36.001516\r\n,-78.943319\r\n" .
+    # "%6\r\n" .
+    # "\$6\r\nbignum\r\n(3492890328409238509324850943850943825024385\r\n" .
+    # "\$8\r\nbooleans\r\n~2\r\n#t\r\n#f\r\n" .
+    # "\$4\r\nnull\r\n_\r\n" .
+    # "\$11\r\nspecial_map\r\n%2\r\n:42\r\n\$10\r\nThe answer\r\n_\r\n\$7\r\nNo data\r\n" .
+    # "\$6\r\nstring\r\n\$16\r\nthis is a string\r\n" .
+    # "\$8\r\nverbatim\r\n=21\r\nmkd:*verbatim* string\r\n"
+
     # sets represented in the protocol the same as arrays
-    my %set = map {($_->{data} => 1)} @{$redis->get_message};
+    # remapping into a hash may be useful to access string set elements
+    $redis->parse("~3\r\n+x\r\n+y\r\n+z\r\n");
+    my %set = map {($_->{data} => 1)} @{$redis->get_message->{data}};
+    die unless exists $set{x};
     print join ',', keys %set; # x,y,z in unspecified order
+
+    # verbatim strings are prefixed by a format
+    # this will be returned as the format key
+    $redis->parse("=16\r\nmkd:* one\n* two\n\r\n");
+    my $verbatim = $redis->get_message;
+    die unless $verbatim->{format} eq 'mkd';
+    print $verbatim->{data};
+    # * one
+    # * two
+
+    # attributes are maps that apply to the following value
+    $redis->parse("|1\r\n+hits\r\n:6\r\n\$4\r\nterm\r\n");
+    my $term = $redis->get_message;
+    print "$term->{data}: $term->{attributes}{hits}{data}\n";
 
 =head1 DESCRIPTION
 
