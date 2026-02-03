@@ -47,7 +47,7 @@ sub _apiv3_ok {
     my $redis_class = shift;
 
     subtest 'Protocol::Redis APIv3 ok' => sub {
-        plan tests => 150;
+        plan tests => 151;
 
         _test_version_3($redis_class);
     }
@@ -841,6 +841,8 @@ sub _encode_v3_ok {
       'encode negative double with exponent';
     is $redis->encode({type => ',', data => '10'}), ",10\r\n",
       'encode integer as double';
+    is $redis->encode({type => ',', data => '0'}), ",0\r\n",
+      'encode zero as double';
     is $redis->encode({type => ',', data => 9**9**9}), ",inf\r\n",
       'encode inf';
     is $redis->encode({type => ',', data => -9**9**9}), ",-inf\r\n",
