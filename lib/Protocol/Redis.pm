@@ -221,7 +221,7 @@ sub _encode_resp3 {
         # Double
         elsif ($message->{type} eq ',') {
             # inf
-            if ($message->{data} == $message->{data} * 2) {
+            if ($message->{data} != 0 and $message->{data} == $message->{data} * 2) {
                 $encoded_message .= ',' . ($message->{data} > 0 ? '' : '-') . "inf\r\n";
             }
             # nan
