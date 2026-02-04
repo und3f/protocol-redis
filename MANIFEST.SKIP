@@ -9,4 +9,3 @@
 MYMETA
 ^\.travis\.yml$
 .*\.tar\.gz$
-README.pod
