@@ -257,5 +257,5 @@ Yaroslav Korshak (yko)
 Copyright (C) 2011-2026, Serhii Zasenko.
 
 This program is free software, you can redistribute it and/or modify it under
-the same terms as Perl 5.
+the same terms as Perl 5.10.
 
