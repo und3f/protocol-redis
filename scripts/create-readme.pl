@@ -1,7 +1,6 @@
 #!/usr/bin/env perl
 
 use Pod::Readme::Brief;
-use Pod::Select qw(podselect);
 
 $PROTOCOL_REDIS_PM = "lib/Protocol/Redis.pm";
 
