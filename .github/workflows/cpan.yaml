@@ -35,7 +35,7 @@ jobs:
         run: perl Makefile.PL
 
       - name: Install Perl::Tidy
-        run: sudo cpanm --notest Perl::Tidy
+        run: cpanm --notest Perl::Tidy
 
       - name: Check formatting
         run: make check-format
