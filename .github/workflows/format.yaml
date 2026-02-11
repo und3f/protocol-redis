@@ -1,0 +1,30 @@
+name: Lint
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+  workflow_dispatch:
+
+jobs:
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Set up perl
+        uses: shogo82148/actions-setup-perl@v1
+        with:
+          perl_version: "5.42"
+          os: "ubuntu-latest"
+
+
+    - name: Configure with Makefile.PL
+      id: configure-with-eumm
+      if: ${{ hashFiles('Makefile.PL') != '' }}
+      run: |
+        perl Makefile.PL
+        make
+
+    - name: Check Formatting
+      run: make check-format
+

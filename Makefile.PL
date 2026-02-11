@@ -48,5 +48,8 @@ README.pod: scripts/create-readme-pod.pl
 
 format:
 	find . -iname "*.p[ml]" -o -name "*.t" | xargs perltidy
+
+check-format:
+	find . -iname "*.p[ml]" -o -name "*.t" | xargs perltidy --assert-tidy
 MAKEFILE
 }
