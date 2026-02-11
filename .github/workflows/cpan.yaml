@@ -20,4 +20,12 @@ jobs:
     uses: PerlToolsTeam/github_workflows/.github/workflows/cpan-perlcritic.yml@main
 
   check-format:
-    run: make check-format
+    runs-on: ubuntu-latest
+    container: avastsoftware/perltidy
+    steps:
+      - uses: actions/checkout@v6
+      - name: Perl version
+        run: perl -V
+      - name: Check formatting
+        run: make check-format
+
