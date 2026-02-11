@@ -25,7 +25,14 @@ WriteMakefile(
             bugtracker =>
               {web => 'https://github.com/und3f/protocol-redis/issues'},
         },
-        prereqs => {develop => {requires => {'Pod::Readme::Brief' => 0}}},
+        prereqs => {
+            develop => {
+                requires => {
+                    'Pod::Readme::Brief'   => 0,
+                    'Pod::Simple::JustPod' => 0,
+                }
+            }
+        },
     },
 
     MIN_PERL_VERSION => '5.008001',
