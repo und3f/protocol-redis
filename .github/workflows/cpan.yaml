@@ -30,6 +30,10 @@ jobs:
       - name: Perl version
         run: perl -V
 
+      - name: Configure with Makefile.PL
+        id: configure-with-eumm
+        run: perl Makefile.PL
+
       - name: Check formatting
         run: make check-format
 
