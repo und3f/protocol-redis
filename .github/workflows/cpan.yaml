@@ -21,11 +21,15 @@ jobs:
 
   check-format:
     runs-on: ubuntu-latest
-    container: avastsoftware/perltidy
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v5
+
+      - name: Set up perl
+        uses: shogo82148/actions-setup-perl@v1
+
       - name: Perl version
         run: perl -V
+
       - name: Check formatting
         run: make check-format
 
