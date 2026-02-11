@@ -15,7 +15,9 @@ sub new {
     my $self = {@_};
 
     Carp::croak(qq/Unknown Protocol::Redis API version $self->{api}/)
-      unless $self->{api} == 1 or $self->{api} == 2 or $self->{api} == 3;
+      unless $self->{api} == 1
+      or $self->{api} == 2
+      or $self->{api} == 3;
 
     bless $self, $class;
 
@@ -66,22 +68,28 @@ sub _encode_resp2 {
         # Bulk string
         if ($message->{type} eq '$') {
             if (defined $message->{data}) {
-                $encoded_message .= '$' . length($message->{data}) . "\r\n" . $message->{data} . "\r\n";
+                $encoded_message
+                  .= '$'
+                  . length($message->{data}) . "\r\n"
+                  . $message->{data} . "\r\n";
             }
             else {
                 $encoded_message .= "\$-1\r\n";
             }
         }
+
         # Array (multi bulk)
         elsif ($message->{type} eq '*') {
             if (defined $message->{data}) {
-                $encoded_message .= '*' . scalar(@{$message->{data}}) . "\r\n";
+                $encoded_message
+                  .= '*' . scalar(@{$message->{data}}) . "\r\n";
                 unshift @_, @{$message->{data}};
             }
             else {
                 $encoded_message .= "*-1\r\n";
             }
         }
+
         # String, error, integer
         elsif (exists $simple_types{$message->{type}}) {
             $encoded_message .= $message->{type} . $message->{data} . "\r\n";
@@ -95,47 +103,52 @@ sub _encode_resp2 {
 }
 
 sub _parse_resp2 {
-    my $self        = shift;
-    $self->{_buffer}.= shift;
+    my $self = shift;
+    $self->{_buffer} .= shift;
 
     my $message = $self->{_message} ||= {};
     my $buffer  = \$self->{_buffer};
 
-    CHUNK:
+  CHUNK:
     while ((my $pos = index($$buffer, "\r\n")) != -1) {
+
         # Check our state: are we parsing new message or completing existing
         if (!$message->{type}) {
             if ($pos < 1) {
                 Carp::croak(qq/Unexpected input "$$buffer"/);
             }
 
-            $message->{type} = substr $$buffer, 0, 1;
-            $message->{_argument}  = substr $$buffer, 1, $pos - 1;
-            substr $$buffer, 0, $pos + 2, ''; # Remove type + argument + \r\n
+            $message->{type}      = substr $$buffer, 0, 1;
+            $message->{_argument} = substr $$buffer, 1, $pos - 1;
+            substr $$buffer, 0, $pos + 2, '';  # Remove type + argument + \r\n
         }
 
         # Simple Strings, Errors, Integers
         if (exists $simple_types{$message->{type}}) {
             $message->{data} = delete $message->{_argument};
         }
+
         # Bulk Strings
         elsif ($message->{type} eq '$') {
             if ($message->{_argument} eq '-1') {
                 $message->{data} = undef;
             }
             elsif (length($$buffer) >= $message->{_argument} + 2) {
-                $message->{data} = substr $$buffer, 0, $message->{_argument}, '';
-                substr $$buffer, 0, 2, ''; # Remove \r\n
+                $message->{data} = substr $$buffer, 0, $message->{_argument},
+                  '';
+                substr $$buffer, 0, 2, '';    # Remove \r\n
             }
             else {
-                return # Wait more data
+                return                        # Wait more data
             }
         }
+
         # Arrays
         elsif ($message->{type} eq '*') {
             if ($message->{_argument} eq '-1') {
                 $message->{data} = undef;
-            } else {
+            }
+            else {
                 $message->{data} = [];
                 if ($message->{_argument} > 0) {
                     $message = $self->{_message} = {_parent => $message};
@@ -143,6 +156,7 @@ sub _parse_resp2 {
                 }
             }
         }
+
         # Invalid input
         else {
             Carp::croak(qq/Unexpected input "$self->{_message}{type}"/);
@@ -170,7 +184,7 @@ sub _parse_resp2 {
     }
 }
 
-my %blob_types = ('$' => 1, '!' => 1, '=' => 1);
+my %blob_types      = ('$' => 1, '!' => 1, '=' => 1);
 my %aggregate_types = ('*' => 1, '%' => 1, '~' => 1, '|' => 1, '>' => 1);
 
 sub _encode_resp3 {
@@ -183,59 +197,86 @@ sub _encode_resp3 {
         # Attributes
         if (defined $message->{attributes}) {
             my %append_message = %$message;
-            my $attributes = delete $append_message{attributes};
+            my $attributes     = delete $append_message{attributes};
             $encoded_message .= '|' . keys(%$attributes) . "\r\n";
-            unshift @_, (map { ({type => '$', data => $_}, $attributes->{$_}) }
-                sort keys %$attributes), \%append_message;
+            unshift @_, (
+                map { ({type => '$', data => $_}, $attributes->{$_}) }
+                sort keys %$attributes
+              ),
+              \%append_message;
         }
 
         # Bulk string, Blob error, Verbatim string
         elsif (exists $blob_types{$message->{type}}) {
             my $text = $message->{data};
             if ($message->{type} eq '=') {
-                my $format = defined $message->{format} ? $message->{format} : 'txt';
+                my $format =
+                  defined $message->{format} ? $message->{format} : 'txt';
                 $text = "$format:$text";
             }
-            $encoded_message .= $message->{type} . length($text) . "\r\n" . $text . "\r\n";
+            $encoded_message
+              .= $message->{type} . length($text) . "\r\n" . $text . "\r\n";
         }
+
         # Array, Set, Push
-        elsif ($message->{type} eq '*' or $message->{type} eq '~' or $message->{type} eq '>') {
-            $encoded_message .= $message->{type} . scalar(@{$message->{data}}) . "\r\n";
+        elsif ($message->{type} eq '*'
+            or $message->{type} eq '~'
+            or $message->{type} eq '>')
+        {
+            $encoded_message
+              .= $message->{type} . scalar(@{$message->{data}}) . "\r\n";
             unshift @_, @{$message->{data}};
         }
+
         # Map
         elsif ($message->{type} eq '%') {
             if (ref $message->{data} eq 'ARRAY') {
-                $encoded_message .= $message->{type} . int(@{$message->{data}} / 2) . "\r\n";
+                $encoded_message
+                  .= $message->{type} . int(@{$message->{data}} / 2) . "\r\n";
                 unshift @_, @{$message->{data}};
-            } else {
-                $encoded_message .= $message->{type} . keys(%{$message->{data}}) . "\r\n";
-                unshift @_, map { ({type => '$', data => $_}, $message->{data}{$_}) }
-                    sort keys %{$message->{data}};
+            }
+            else {
+                $encoded_message
+                  .= $message->{type} . keys(%{$message->{data}}) . "\r\n";
+                unshift @_,
+                  map { ({type => '$', data => $_}, $message->{data}{$_}) }
+                  sort keys %{$message->{data}};
             }
         }
+
         # String, error, integer, big number
-        elsif (exists $simple_types{$message->{type}} or $message->{type} eq '(') {
+        elsif (exists $simple_types{$message->{type}}
+            or $message->{type} eq '(')
+        {
             $encoded_message .= $message->{type} . $message->{data} . "\r\n";
         }
+
         # Double
         elsif ($message->{type} eq ',') {
+
             # inf
-            if ($message->{data} != 0 and $message->{data} == $message->{data} * 2) {
-                $encoded_message .= ',' . ($message->{data} > 0 ? '' : '-') . "inf\r\n";
+            if (    $message->{data} != 0
+                and $message->{data} == $message->{data} * 2)
+            {
+                $encoded_message
+                  .= ',' . ($message->{data} > 0 ? '' : '-') . "inf\r\n";
             }
+
             # nan
             elsif ($message->{data} != $message->{data}) {
                 $encoded_message .= ",nan\r\n";
             }
             else {
-                $encoded_message .= $message->{type} . $message->{data} . "\r\n";
+                $encoded_message
+                  .= $message->{type} . $message->{data} . "\r\n";
             }
         }
+
         # Null
         elsif ($message->{type} eq '_') {
             $encoded_message .= "_\r\n";
         }
+
         # Boolean
         elsif ($message->{type} eq '#') {
             $encoded_message .= '#' . ($message->{data} ? 't' : 'f') . "\r\n";
@@ -249,23 +290,24 @@ sub _encode_resp3 {
 }
 
 sub _parse_resp3 {
-    my $self        = shift;
-    $self->{_buffer}.= shift;
+    my $self = shift;
+    $self->{_buffer} .= shift;
 
     my $message = $self->{_message} ||= {};
     my $buffer  = \$self->{_buffer};
 
-    CHUNK:
+  CHUNK:
     while ((my $pos = index($$buffer, "\r\n")) != -1) {
+
         # Check our state: are we parsing new message or completing existing
         if (!$message->{type}) {
             if ($pos < 1) {
                 Carp::croak(qq/Unexpected input "$$buffer"/);
             }
 
-            $message->{type} = substr $$buffer, 0, 1;
-            $message->{_argument}  = substr $$buffer, 1, $pos - 1;
-            substr $$buffer, 0, $pos + 2, ''; # Remove type + argument + \r\n
+            $message->{type}      = substr $$buffer, 0, 1;
+            $message->{_argument} = substr $$buffer, 1, $pos - 1;
+            substr $$buffer, 0, $pos + 2, '';  # Remove type + argument + \r\n
         }
 
         # Streamed String Parts - must be checked for first
@@ -279,38 +321,46 @@ sub _parse_resp3 {
             }
             elsif (length($$buffer) >= $message->{_argument} + 2) {
                 my $streaming = delete $message->{_streaming};
-                $streaming->{data} .= substr $$buffer, 0, $message->{_argument}, '';
-                substr $$buffer, 0, 2, ''; # Remove \r\n
+                $streaming->{data} .= substr $$buffer, 0,
+                  $message->{_argument}, '';
+                substr $$buffer, 0, 2, '';    # Remove \r\n
                 $message = $self->{_message} = {_streaming => $streaming};
                 next;
             }
             else {
-                return # Wait more data
+                return                        # Wait more data
             }
         }
+
         # Simple Strings, Errors, Integers
         elsif (exists $simple_types{$message->{type}}) {
             $message->{data} = delete $message->{_argument};
         }
+
         # Null
         elsif ($message->{type} eq '_') {
             delete $message->{_argument};
             $message->{data} = undef;
         }
+
         # Booleans
         elsif ($message->{type} eq '#') {
             $message->{data} = !!(delete($message->{_argument}) eq 't');
         }
+
         # Doubles
         elsif ($message->{type} eq ',') {
             $message->{data} = delete $message->{_argument};
             $message->{data} = 'nan' if $message->{data} =~ m/^[-+]?nan/i;
         }
+
         # Big Numbers
         elsif ($message->{type} eq '(') {
             require Math::BigInt;
-            $message->{data} = Math::BigInt->new(delete $message->{_argument});
+            $message->{data} =
+              Math::BigInt->new(delete $message->{_argument});
         }
+
         # Bulk/Blob Strings, Blob Errors, Verbatim Strings
         elsif (exists $blob_types{$message->{type}}) {
             if ($message->{type} eq '$' and $message->{_argument} eq '?') {
@@ -319,21 +369,26 @@ sub _parse_resp3 {
                 next;
             }
             elsif (length($$buffer) >= $message->{_argument} + 2) {
-                $message->{data} = substr $$buffer, 0, $message->{_argument}, '';
-                if ($message->{type} eq '=' and $message->{data} =~ s/^(.{3})://s) {
+                $message->{data} = substr $$buffer, 0, $message->{_argument},
+                  '';
+                if (    $message->{type} eq '='
+                    and $message->{data} =~ s/^(.{3})://s)
+                {
                     $message->{format} = $1;
                 }
-                substr $$buffer, 0, 2, ''; # Remove \r\n
+                substr $$buffer, 0, 2, '';    # Remove \r\n
             }
             else {
-                return # Wait more data
+                return                        # Wait more data
             }
         }
+
         # Arrays, Maps, Sets, Attributes, Push
         elsif (exists $aggregate_types{$message->{type}}) {
             if ($message->{type} eq '%' or $message->{type} eq '|') {
                 $message->{data} = {};
-            } else {
+            }
+            else {
                 $message->{data} = [];
             }
 
@@ -341,6 +396,7 @@ sub _parse_resp3 {
                 $message = $self->{_message} = {_parent => $message};
                 next;
             }
+
             # Populate empty attributes for next message if we reach here
             if ($message->{type} eq '|') {
                 $message->{attributes} = {};
@@ -350,11 +406,16 @@ sub _parse_resp3 {
                 next;
             }
         }
+
         # Streamed Aggregate End
-        elsif ($message->{type} eq '.' and $message->{_parent} and $message->{_parent}{_argument} eq '?') {
+        elsif ( $message->{type} eq '.'
+            and $message->{_parent}
+            and $message->{_parent}{_argument} eq '?')
+        {
             $message = delete $message->{_parent};
             delete $message->{_elements};
         }
+
         # Invalid input
         else {
             Carp::croak(qq/Unexpected input "$self->{_message}{type}"/);
@@ -365,15 +426,18 @@ sub _parse_resp3 {
 
         # Fill parents with data
         while (my $parent = delete $message->{_parent}) {
+
             # Map key or value
             if ($parent->{type} eq '%' or $parent->{type} eq '|') {
                 if (exists $parent->{_key}) {
                     $parent->{_elements}++;
                     $parent->{data}{delete $parent->{_key}} = $message;
-                } else {
+                }
+                else {
                     $parent->{_key} = $message->{data};
                 }
             }
+
             # Array or set element
             else {
                 $parent->{_elements}++;
@@ -381,7 +445,9 @@ sub _parse_resp3 {
             }
 
             # Do we need more elements?
-            if ($parent->{_argument} eq '?' or ($parent->{_elements} || 0) < $parent->{_argument}) {
+            if ($parent->{_argument} eq '?'
+                or ($parent->{_elements} || 0) < $parent->{_argument})
+            {
                 $message = $self->{_message} = {_parent => $parent};
                 next CHUNK;
             }
@@ -394,7 +460,7 @@ sub _parse_resp3 {
 
             # Attributes apply to the following message
             if ($message->{type} eq '|') {
-                $self->{_message} = $message;
+                $self->{_message}      = $message;
                 $message->{attributes} = delete $message->{data};
                 delete $message->{type};
                 next CHUNK;

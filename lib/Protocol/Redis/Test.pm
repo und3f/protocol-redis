@@ -88,18 +88,19 @@ sub _test_version_3 {
 
     # Parsing method tests
     $redis->on_message(undef);
+
     # simple string, error string, number
     _parse_string_ok($redis);
     _parse_null_ok($redis);
     _parse_boolean_ok($redis);
     _parse_double_ok($redis);
     _parse_big_number_ok($redis);
-    _parse_blob_ok($redis, '$'); # blob string
-    _parse_blob_ok($redis, '!'); # blob error
-    _parse_verbatim_ok($redis); # verbatim string
-    _parse_array_ok($redis, '*'); # array
-    _parse_array_ok($redis, '~'); # set
-    _parse_array_ok($redis, '>'); # push
+    _parse_blob_ok($redis, '$');     # blob string
+    _parse_blob_ok($redis, '!');     # blob error
+    _parse_verbatim_ok($redis);      # verbatim string
+    _parse_array_ok($redis, '*');    # array
+    _parse_array_ok($redis, '~');    # set
+    _parse_array_ok($redis, '>');    # push
     _parse_map_ok($redis);
     _parse_attribute_ok($redis);
     _parse_streamed_string_ok($redis);
@@ -156,7 +157,7 @@ sub _parse_string_ok {
 
 sub _parse_blob_ok {
     my $redis = shift;
-    my $type = shift || '$';
+    my $type  = shift || '$';
 
     # Bulk message
     $redis->parse("${type}4\r\ntest\r\n");
@@ -224,13 +225,17 @@ sub _parse_verbatim_ok {
     $redis->parse(join("\r\n", '=8', 'txt:test', '=6', 'mkd:OK'));
     $redis->parse("\r\n");
     is_deeply $redis->get_message,
-      {type => '=', data => 'test', format => 'txt'}, "two chunked verbatim string messages";
-    is_deeply $redis->get_message, {type => '=', data => 'OK', format => 'mkd'};
+      {type => '=', data => 'test', format => 'txt'},
+      "two chunked verbatim string messages";
+    is_deeply $redis->get_message,
+      {type => '=', data => 'OK', format => 'mkd'};
 
     # Pipelined verbatim message
     $redis->parse(join("\r\n", ('=7', 'txt:ok1'), ('=7', 'txt:ok2'), ''));
-    is_deeply [$redis->get_message, $redis->get_message],
-      [{type => '=', data => 'ok1', format => 'txt'}, {type => '=', data => 'ok2', format => 'txt'}],
+    is_deeply [$redis->get_message, $redis->get_message], [
+        {type => '=', data => 'ok1', format => 'txt'},
+        {type => '=', data => 'ok2', format => 'txt'}
+      ],
       "pipelined verbatim string message";
 
     # Binary test
@@ -257,7 +262,7 @@ sub _parse_verbatim_ok {
 
 sub _parse_array_ok {
     my $redis = shift;
-    my $type = shift || '*';
+    my $type  = shift || '*';
 
     # Array message
     $redis->parse("${type}1\r\n\$4\r\ntest\r\n");
@@ -286,14 +291,17 @@ sub _parse_array_ok {
 
     is_deeply $redis->get_message, {
         type => $type,
-        data => [
-            {type => $type, data => [
-                {type => '+', data => 'test1'},
-                {type => '+', data => 'test2'},
-            ]},
+        data => [{
+                type => $type,
+                data => [
+                    {type => '+', data => 'test1'},
+                    {type => '+', data => 'test2'},
+                ]
+            },
             {type => '+', data => 'test3'},
         ]
-    }, "nested $type array message";
+      },
+      "nested $type array message";
 
     $redis->parse("${type}0\r\n");
     is_deeply $redis->get_message,
@@ -358,7 +366,8 @@ sub _parse_array_ok {
     $redis->parse(
         join("\r\n",
             ("${type}2", '$3', 'ok1', '$3', 'ok2'),
-            ("${type}1", '$3', 'ok3'), '')
+            ("${type}1", '$3', 'ok3'),
+            '')
     );
 
     is_deeply $redis->get_message, {
@@ -443,14 +452,14 @@ sub _parse_double_ok {
     my $message = $redis->get_message;
     is $message->{type}, ',', 'double message type';
     cmp_ok $message->{data}, '==', $message->{data} + 1, 'received infinity';
-    cmp_ok $message->{data}, '>', 0, 'received positive infinity';
+    cmp_ok $message->{data}, '>',  0, 'received positive infinity';
 
     # Negative infinity message
     $redis->parse(",-inf\r\n");
     $message = $redis->get_message;
     is $message->{type}, ',', 'double message type';
     cmp_ok $message->{data}, '==', $message->{data} - 1, 'received infinity';
-    cmp_ok $message->{data}, '<', 0, 'received negative infinity';
+    cmp_ok $message->{data}, '<',  0, 'received negative infinity';
 
     # NaN message
     $redis->parse(",nan\r\n");
@@ -514,12 +523,15 @@ sub _parse_map_ok {
     $redis->parse("%3\r\n\$5\r\ntest1\r\n");
     $redis->parse(":1\r\n+test2\r\n,0.01\r\n:3\r\n_\r\n");
 
-    is_deeply $redis->get_message,
-      {type => '%', data => {
-        test1 => {type => ':', data => '1'},
-        test2 => {type => ',', data => '0.01'},
-        '3' => {type => '_', data => undef},
-      }}, 'complex map message';
+    is_deeply $redis->get_message, {
+        type => '%',
+        data => {
+            test1 => {type => ':', data => '1'},
+            test2 => {type => ',', data => '0.01'},
+            '3'   => {type => '_', data => undef},
+        }
+      },
+      'complex map message';
 }
 
 sub _parse_set_ok {
@@ -528,14 +540,17 @@ sub _parse_set_ok {
     # Set message
     $redis->parse("~5\r\n+test1\r\n\$5\r\ntest2\r\n:42\r\n#t\r\n_\r\n");
 
-    is_deeply $redis->get_message,
-      {type => '~', data => [
-        {type => '+', data => 'test1'},
-        {type => '$', data => 'test2'},
-        {type => ':', data => '42'},
-        {type => '#', data => !!1},
-        {type => '_', data => undef},
-      ]}, 'set message';
+    is_deeply $redis->get_message, {
+        type => '~',
+        data => [
+            {type => '+', data => 'test1'},
+            {type => '$', data => 'test2'},
+            {type => ':', data => '42'},
+            {type => '#', data => !!1},
+            {type => '_', data => undef},
+        ]
+      },
+      'set message';
 
     # Empty set message
     $redis->parse("~0\r\n");
@@ -547,29 +562,35 @@ sub _parse_set_ok {
     # Set message with duplicates
     $redis->parse("~3\r\n+test1\r\n+test2\r\n+test1\r\n");
 
-    is_deeply $redis->get_message,
-      {type => '~', data => [
-        {type => '+', data => 'test1'},
-        {type => '+', data => 'test2'},
-        {type => '+', data => 'test1'},
-      ]}, 'set message with duplicates';
+    is_deeply $redis->get_message, {
+        type => '~',
+        data => [
+            {type => '+', data => 'test1'},
+            {type => '+', data => 'test2'},
+            {type => '+', data => 'test1'},
+        ]
+      },
+      'set message with duplicates';
 
     # Set message with non-duplicate but equal strings
     $redis->parse("~8\r\n+test1\r\n\$5\r\ntest1\r\n");
     $redis->parse(":1\r\n,1\r\n#t\r\n");
     $redis->parse("_\r\n+\r\n\$0\r\n\r\n");
 
-    is_deeply $redis->get_message,
-      {type => '~', data => [
-        {type => '+', data => 'test1'},
-        {type => '$', data => 'test1'},
-        {type => ':', data => '1'},
-        {type => ',', data => '1'},
-        {type => '#', data => !!1},
-        {type => '_', data => undef},
-        {type => '+', data => ''},
-        {type => '$', data => ''},
-      ]}, 'set message with non-duplicate but equal strings';
+    is_deeply $redis->get_message, {
+        type => '~',
+        data => [
+            {type => '+', data => 'test1'},
+            {type => '$', data => 'test1'},
+            {type => ':', data => '1'},
+            {type => ',', data => '1'},
+            {type => '#', data => !!1},
+            {type => '_', data => undef},
+            {type => '+', data => ''},
+            {type => '$', data => ''},
+        ]
+      },
+      'set message with non-duplicate but equal strings';
 }
 
 sub _parse_attribute_ok {
@@ -579,23 +600,29 @@ sub _parse_attribute_ok {
     $redis->parse("|1\r\n+total\r\n:5\r\n*2\r\n");
     $redis->parse("\$5\r\ntest1\r\n\$5\r\ntest2\r\n");
 
-    is_deeply $redis->get_message,
-      {type => '*', data => [
-        {type => '$', data => 'test1'},
-        {type => '$', data => 'test2'},
-      ], attributes => {
-        total => {type => ':', data => '5'},
-      }}, 'message with attributes';
+    is_deeply $redis->get_message, {
+        type => '*',
+        data =>
+          [{type => '$', data => 'test1'}, {type => '$', data => 'test2'},],
+        attributes => {
+            total => {type => ':', data => '5'},
+        }
+      },
+      'message with attributes';
 
     # Multiple attributes
     $redis->parse("|3\r\n+x\r\n,0.5\r\n+y\r\n,-3.4\r\n+z\r\n:42\r\n+OK\r\n");
 
-    is_deeply $redis->get_message,
-      {type => '+', data => 'OK', attributes => {
-        x => {type => ',', data => '0.5'},
-        y => {type => ',', data => '-3.4'},
-        z => {type => ':', data => '42'},
-      }}, 'message with multiple attributes';
+    is_deeply $redis->get_message, {
+        type       => '+',
+        data       => 'OK',
+        attributes => {
+            x => {type => ',', data => '0.5'},
+            y => {type => ',', data => '-3.4'},
+            z => {type => ':', data => '42'},
+        }
+      },
+      'message with multiple attributes';
 
     # Empty attributes
     $redis->parse("|0\r\n-ERR no response\r\n");
@@ -608,26 +635,44 @@ sub _parse_attribute_ok {
     $redis->parse("*2\r\n|2\r\n+min\r\n:0\r\n+max\r\n:10\r\n:5\r\n");
     $redis->parse("|2\r\n+min\r\n:4\r\n+max\r\n:8\r\n:7\r\n");
 
-    is_deeply $redis->get_message,
-      {type => '*', data => [
-        {type => ':', data => '5', attributes => {
-          min => {type => ':', data => '0'},
-          max => {type => ':', data => '10'},
-        }},
-        {type => ':', data => '7', attributes => {
-          min => {type => ':', data => '4'},
-          max => {type => ':', data => '8'},
-        }},
-      ]}, 'message with embedded attributes';
+    is_deeply $redis->get_message, {
+        type => '*',
+        data => [{
+                type       => ':',
+                data       => '5',
+                attributes => {
+                    min => {type => ':', data => '0'},
+                    max => {type => ':', data => '10'},
+                }
+            }, {
+                type       => ':',
+                data       => '7',
+                attributes => {
+                    min => {type => ':', data => '4'},
+                    max => {type => ':', data => '8'},
+                }
+            },
+        ]
+      },
+      'message with embedded attributes';
 
     # Aggregate attributes
     $redis->parse("|1\r\n+array\r\n*2\r\n+test1\r\n+test2\r\n+test\r\n");
 
-    is_deeply $redis->get_message,
-      {type => '+', data => 'test', attributes => {array => {type => '*', data => [
-        {type => '+', data => 'test1'},
-        {type => '+', data => 'test2'},
-      ]}}}, 'message with aggregate attribute values';
+    is_deeply $redis->get_message, {
+        type       => '+',
+        data       => 'test',
+        attributes => {
+            array => {
+                type => '*',
+                data => [
+                    {type => '+', data => 'test1'},
+                    {type => '+', data => 'test2'},
+                ]
+            }
+        }
+      },
+      'message with aggregate attribute values';
 }
 
 sub _parse_push_ok {
@@ -636,11 +681,11 @@ sub _parse_push_ok {
     # Simple push message
     $redis->parse(">2\r\n\$5\r\ntest1\r\n:42\r\n");
 
-    is_deeply $redis->get_message,
-      {type => '>', data => [
-        {type => '$', data => 'test1'},
-        {type => ':', data => '42'},
-      ]}, 'simple push message';
+    is_deeply $redis->get_message, {
+        type => '>',
+        data => [{type => '$', data => 'test1'}, {type => ':', data => '42'},]
+      },
+      'simple push message';
 
     # Empty push message
     $redis->parse(">0\r\n");
@@ -669,32 +714,39 @@ sub _parse_streamed_string_ok {
 
     # Charwise streamed string
     $redis->parse("\$?\r\n");
-    $redis->parse(";1\r\n$_\r\n") for 'a'..'z';
+    $redis->parse(";1\r\n$_\r\n") for 'a' .. 'z';
     $redis->parse(";0\r\n");
 
     is_deeply $redis->get_message,
-      {type => '$', data => join('', 'a'..'z')},
+      {type => '$', data => join('', 'a' .. 'z')},
       'string streamed by character';
 }
 
 sub _parse_streamed_aggregate_ok {
     my $redis = shift;
-    my $type = shift || '*';
+    my $type  = shift || '*';
 
     # Simple streamed aggregate
     $redis->parse("${type}?\r\n+test1\r\n+test2\r\n.\r\n");
 
     if ($type eq '%') {
-      is_deeply $redis->get_message,
-        {type => $type, data => {
-          test1 => {type => '+', data => 'test2'},
-        }}, "simple $type streamed aggregate message";
-    } else {
-      is_deeply $redis->get_message,
-        {type => $type, data => [
-          {type => '+', data => 'test1'},
-          {type => '+', data => 'test2'},
-        ]}, "simple $type streamed aggregate message";
+        is_deeply $redis->get_message, {
+            type => $type,
+            data => {
+                test1 => {type => '+', data => 'test2'},
+            }
+          },
+          "simple $type streamed aggregate message";
+    }
+    else {
+        is_deeply $redis->get_message, {
+            type => $type,
+            data => [
+                {type => '+', data => 'test1'},
+                {type => '+', data => 'test2'},
+            ]
+          },
+          "simple $type streamed aggregate message";
     }
 
     # Empty streamed aggregate
@@ -707,32 +759,44 @@ sub _parse_streamed_aggregate_ok {
     # Complex streamed aggregate
     $redis->parse("${type}?\r\n");
     $redis->parse("\$?\r\n;4\r\ntest\r\n;1\r\n1\r\n;0\r\n");
-    $redis->parse("\$5\r\ntest$_\r\n") for 2..9;
+    $redis->parse("\$5\r\ntest$_\r\n") for 2 .. 9;
     $redis->parse("*?\r\n:10\r\n,11\r\n.\r\n");
     $redis->parse(".\r\n");
 
     if ($type eq '%') {
-      is_deeply $redis->get_message,
-        {type => $type, data => {
-          test1 => {type => '$', data => 'test2'},
-          test3 => {type => '$', data => 'test4'},
-          test5 => {type => '$', data => 'test6'},
-          test7 => {type => '$', data => 'test8'},
-          test9 => {type => '*', data => [
-            {type => ':', data => '10'},
-            {type => ',', data => '11'},
-          ]},
-        }}, "complex $type streamed aggregate message";
-    } else {
-      is_deeply $redis->get_message,
-        {type => $type, data => [
-          {type => '$', data => 'test1'},
-          (map {+{type => '$', data => "test$_"}} 2..9),
-          {type => '*', data => [
-            {type => ':', data => '10'},
-            {type => ',', data => '11'},
-          ]},
-        ]}, "complex $type streamed aggregate message";
+        is_deeply $redis->get_message, {
+            type => $type,
+            data => {
+                test1 => {type => '$', data => 'test2'},
+                test3 => {type => '$', data => 'test4'},
+                test5 => {type => '$', data => 'test6'},
+                test7 => {type => '$', data => 'test8'},
+                test9 => {
+                    type => '*',
+                    data => [
+                        {type => ':', data => '10'},
+                        {type => ',', data => '11'},
+                    ]
+                },
+            }
+          },
+          "complex $type streamed aggregate message";
+    }
+    else {
+        is_deeply $redis->get_message, {
+            type => $type,
+            data => [
+                {type => '$', data => 'test1'},
+                (map { +{type => '$', data => "test$_"} } 2 .. 9), {
+                    type => '*',
+                    data => [
+                        {type => ':', data => '10'},
+                        {type => ',', data => '11'},
+                    ]
+                },
+            ]
+          },
+          "complex $type streamed aggregate message";
     }
 }
 
@@ -827,8 +891,7 @@ sub _encode_v3_ok {
     my $redis = shift;
 
     # Encode simple RESP3 types
-    is $redis->encode({type => '_', data => undef}), "_\r\n",
-      'encode null';
+    is $redis->encode({type => '_', data => undef}), "_\r\n", 'encode null';
 
     is $redis->encode({type => '#', data => 1}), "#t\r\n",
       'encode boolean true';
@@ -850,13 +913,20 @@ sub _encode_v3_ok {
     is $redis->encode({type => ',', data => -sin 9**9**9}), ",nan\r\n",
       'encode nan';
 
-    is $redis->encode({type => '(',
-      data => '3492890328409238509324850943850943825024385'}),
+    is $redis->encode({
+            type => '(',
+            data => '3492890328409238509324850943850943825024385'
+        }
+      ),
       "(3492890328409238509324850943850943825024385\r\n",
       'encode big number';
     require Math::BigInt;
-    is $redis->encode({type => '(',
-      data => Math::BigInt->new('-3492890328409238509324850943850943825024385')}),
+    is $redis->encode({
+            type => '(',
+            data => Math::BigInt->new(
+                '-3492890328409238509324850943850943825024385')
+        }
+      ),
       "(-3492890328409238509324850943850943825024385\r\n",
       'encode bigint as big number';
     is $redis->encode({type => '(', data => '0'}), "(0\r\n",
@@ -876,34 +946,67 @@ sub _encode_v3_ok {
       "=7\r\ntxt:\0\r\n\r\n", 'encode binary verbatim string';
 
     # Encode aggregate RESP3 types
-    is $redis->encode({type => '%', data => {foo => {type => '+', data => 'bar'}}}),
+    is $redis->encode(
+        {type => '%', data => {foo => {type => '+', data => 'bar'}}}),
       join("\r\n", '%1', '$3', 'foo', '+bar', ''),
       'encode map';
-    is $redis->encode({type => '~', data => [{type => ':', data => 5},
-      {type => '+', data => 'test'}]}),
+    is $redis->encode({
+            type => '~',
+            data => [{type => ':', data => 5}, {type => '+', data => 'test'}]
+        }
+      ),
       join("\r\n", '~2', ':5', '+test', ''),
       'encode set';
-    is $redis->encode({type => '>', data => [{type => '+', data => 'test'},
-      {type => ',', data => '4.2'}]}),
+    is $redis->encode({
+            type => '>',
+            data =>
+              [{type => '+', data => 'test'}, {type => ',', data => '4.2'}]
+        }
+      ),
       join("\r\n", '>2', '+test', ',4.2', ''),
       'encode push';
 
     # Encode attributes
-    is $redis->encode({type => '+', data => 'test',
-      attributes => {foo => {type => '+', data => 'bar'}}}),
+    is $redis->encode({
+            type       => '+',
+            data       => 'test',
+            attributes => {foo => {type => '+', data => 'bar'}}
+        }
+      ),
       join("\r\n", '|1', '$3', 'foo', '+bar', '+test', ''),
       'encode simple string with attributes';
-    is $redis->encode({type => '*', data => [{type => '_', data => undef}],
-      attributes => {test => {type => '#', data => 1}}}),
+    is $redis->encode({
+            type       => '*',
+            data       => [{type => '_', data => undef}],
+            attributes => {test => {type => '#', data => 1}}
+        }
+      ),
       join("\r\n", '|1', '$4', 'test', '#t', '*1', '_', ''),
       'encode array with attributes';
-    is $redis->encode({type => '~', data => [{type => ',', data => '-5.5',
-      attributes => {precision => {type => ':', data => 1}}}]}),
+    is $redis->encode({
+            type => '~',
+            data => [{
+                    type       => ',',
+                    data       => '-5.5',
+                    attributes => {precision => {type => ':', data => 1}}
+                }
+            ]
+        }
+      ),
       join("\r\n", '~1', '|1', '$9', 'precision', ':1', ',-5.5', ''),
       'encode set with embedded attributes';
-    is $redis->encode({type => '+', data => 'test',
-      attributes => {array => {type => '*',
-      data => [{type => ':', data => 1}, {type => ':', data => 2}]}}}),
+    is $redis->encode({
+            type       => '+',
+            data       => 'test',
+            attributes => {
+                array => {
+                    type => '*',
+                    data =>
+                      [{type => ':', data => 1}, {type => ':', data => 2}]
+                }
+            }
+        }
+      ),
       join("\r\n", '|1', '$5', 'array', '*2', ':1', ':2', '+test', ''),
       'encode array attributes';
 }

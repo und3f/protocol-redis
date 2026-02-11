@@ -1,5 +1,8 @@
 This file documents the revision history for Perl extension Protocol::Redis
 
+2.0002  11.02.2026 00:00:00
+         - Improve README, format code.
+
 2.0001  04.02.2026 00:00:00
          - Test and fix encoding 0 as a double in RESP3 (Grinnz).
 

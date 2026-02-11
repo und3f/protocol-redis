@@ -1,3 +1,5 @@
+=pod
+
 =head1 NAME
 
 Protocol::Redis - Redis protocol parser/encoder with asynchronous capabilities.
@@ -203,7 +205,7 @@ Get parsed message or undef.
 Calls callback on each parsed message.
 
 =head2 C<encode>
-    
+
     my $string = $redis->encode({type => '+', data => 'test'});
     $string = $redis->encode(
         {type => '*', data => [
@@ -217,13 +219,13 @@ Encode data into redis message.
 
 Get API version.
 
-
 =head1 SUPPORT
 
 =head2 IRC
 
     #redis on irc.perl.org
     
+
 =head1 DEVELOPMENT
 
 =head2 Repository
@@ -259,3 +261,4 @@ Copyright (C) 2011-2026, Serhii Zasenko.
 This program is free software, you can redistribute it and/or modify it under
 the same terms as Perl 5.10.
 
+=cut

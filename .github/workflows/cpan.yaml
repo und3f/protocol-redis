@@ -18,3 +18,25 @@ jobs:
 
   perlcritic:
     uses: PerlToolsTeam/github_workflows/.github/workflows/cpan-perlcritic.yml@main
+
+  check-format:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Set up perl
+        uses: shogo82148/actions-setup-perl@v1
+
+      - name: Perl version
+        run: perl -V
+
+      - name: Configure with Makefile.PL
+        id: configure-with-eumm
+        run: perl Makefile.PL
+
+      - name: Install Perl::Tidy
+        run: cpanm --notest Perl::Tidy
+
+      - name: Check formatting
+        run: make check-format
+

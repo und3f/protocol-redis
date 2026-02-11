@@ -1,0 +1,43 @@
+# General behavinor
+--standard-error-output
+--backup-and-modify-in-place
+
+# Indentation
+--indent-columns=4
+--continuation-indentation=2
+
+# Line length
+--maximum-line-length=78
+--maximum-consecutive-blank-lines=4
+
+# Vertical tightness
+--vertical-tightness=0
+
+# Horizontal tightness
+--paren-tightness=2
+--brace-tightness=2
+--square-bracket-tightness=2
+--block-brace-tightness=1
+
+# Stack tokens
+--stack-opening-tokens
+#--stack-closing-tokens
+
+# Other style
+#--cuddled-else
+--opening-token-right
+--closing-token-indentation=0
+
+--nospace-for-semicolon
+--nooutdent-long-lines
+
+--want-break-before="% + - * / x != == >= <= =~ < > | & **= += *= &= <<= &&= -= /= |= >>= ||= .= %= ^= x="
+
+# Comments
+
+# troublesome for commented out code
+--nohanging-side-comments
+
+# block comments may only be indented if they have some space characters before the #
+--indent-spaced-block-comments
+

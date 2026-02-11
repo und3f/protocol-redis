@@ -4,6 +4,9 @@
 ^Makefile$
 ^\.git
 ^MANIFEST\.
+^README.pod$
+^scripts/.*
+^.perltidyrc$
 \.bak$
 \.swp$
 MYMETA
